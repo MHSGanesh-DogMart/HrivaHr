@@ -2,41 +2,10 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ── Tenants ────────────────────────────────────────────────────
-    // Any authenticated user can check slug availability (read)
-    // Authenticated users can CREATE a tenant during registration
-    // Only the tenant admin can UPDATE their own tenant doc
-    // Deletion is blocked (use Cloud Function for cleanup)
-    match /tenants/{slug} {
-      allow get:    if true;                          // slug availability check (unauthenticated ok)
-      allow list:   if request.auth != null;
-      allow create: if request.auth != null           // must be logged in
-                    && request.auth.uid == request.resource.data.adminUid; // must be the admin
-      allow update: if request.auth != null
-                    && resource.data.adminUid == request.auth.uid;
-      allow delete: if false;
-
-      // Sub-collections (future: departments, policies, etc.)
-      match /{subcollection}/{docId} {
-        allow read:  if request.auth != null;
-        allow write: if request.auth != null
-                     && get(/databases/$(database)/documents/tenants/$(slug)).data.adminUid == request.auth.uid;
-      }
+    // ⚠️ DEVELOPER MODE: Open for all reads and writes
+    // Change this before going to production
+    match /{document=**} {
+      allow read, write: if true;
     }
-
-    // ── Users ──────────────────────────────────────────────────────
-    // Users can only read/write their own profile document
-    // Admin of a tenant can read profiles in their tenant
-    match /users/{uid} {
-      allow read:   if request.auth != null
-                    && (request.auth.uid == uid);     // own profile
-      allow create: if request.auth != null
-                    && request.auth.uid == uid;       // can only create own doc
-      allow update: if request.auth != null
-                    && request.auth.uid == uid;       // can only update own doc
-      allow delete: if false;
-    }
-
   }
 }

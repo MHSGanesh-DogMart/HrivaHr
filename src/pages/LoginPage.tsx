@@ -1,16 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Eye, EyeOff, Shield, Users, Clock,
   TrendingUp, CheckCircle2, Star, Building2,
-  Lock, ChevronRight, AlertTriangle,
+  Lock, ChevronRight, AlertTriangle, AlertCircle,
+  Smartphone, Mail, KeyRound, RefreshCw, ArrowLeft,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/context/AuthContext'
 
-type LoginTab = 'company' | 'superadmin'
+type LoginTab    = 'company' | 'superadmin'
+type LoginMethod = 'email' | 'phone'
 
 /* ─── Static Data ──────────────────────────────────────────────── */
 const stats = [
@@ -67,24 +70,18 @@ const features = [
 function LeftPanel() {
   return (
     <div className="flex flex-col w-full h-full relative overflow-hidden bg-[#071524]">
-      {/* Layered background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#0a1f3c] via-[#071524] to-[#030d18]" />
-      {/* Dot grid */}
       <div
         className="absolute inset-0 opacity-[0.07]"
         style={{
-          backgroundImage:
-            'radial-gradient(circle, #60a5fa 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle, #60a5fa 1px, transparent 1px)',
           backgroundSize: '28px 28px',
         }}
       />
-      {/* Top-right glow */}
       <div className="absolute -top-32 -right-32 w-80 h-80 rounded-full bg-blue-600/10 blur-3xl" />
-      {/* Bottom-left glow */}
       <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-indigo-700/10 blur-3xl" />
 
       <div className="relative z-10 flex flex-col h-full px-10 py-10">
-        {/* Logo */}
         <motion.div
           initial={{ opacity: 0, y: -16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -99,7 +96,6 @@ function LeftPanel() {
           </span>
         </motion.div>
 
-        {/* Tagline */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -122,7 +118,6 @@ function LeftPanel() {
           </p>
         </motion.div>
 
-        {/* Feature checklist */}
         <motion.ul
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -143,7 +138,6 @@ function LeftPanel() {
           ))}
         </motion.ul>
 
-        {/* Stat cards grid */}
         <div className="mt-auto grid grid-cols-2 gap-3">
           {stats.map((s) => (
             <motion.div
@@ -166,7 +160,6 @@ function LeftPanel() {
           ))}
         </div>
 
-        {/* Footer */}
         <p className="text-slate-600 text-[11px] mt-6 text-center">
           © {new Date().getFullYear()} HrivaHr. Trusted by 10,000+ companies worldwide.
         </p>
@@ -187,10 +180,7 @@ function TabSwitcher({
     <div className="relative flex rounded-xl bg-slate-100 p-1 mb-8">
       <motion.div
         layoutId="tab-pill"
-        className={cn(
-          'absolute inset-1 rounded-[10px] shadow-sm',
-          tab === 'company' ? 'bg-white' : 'bg-white',
-        )}
+        className="absolute inset-1 rounded-[10px] shadow-sm bg-white"
         style={{
           width: 'calc(50% - 4px)',
           left: tab === 'company' ? 4 : 'calc(50%)',
@@ -199,8 +189,8 @@ function TabSwitcher({
       />
       {(
         [
-          { id: 'company', label: 'Company Login', Icon: Building2 },
-          { id: 'superadmin', label: 'Super Admin', Icon: Shield },
+          { id: 'company',    label: 'Company Login', Icon: Building2 },
+          { id: 'superadmin', label: 'Super Admin',   Icon: Shield },
         ] as const
       ).map(({ id, label, Icon }) => (
         <button
@@ -209,6 +199,41 @@ function TabSwitcher({
           className={cn(
             'relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] text-[13px] font-medium transition-colors duration-200',
             tab === id ? 'text-slate-800' : 'text-slate-500 hover:text-slate-700',
+          )}
+        >
+          <Icon className="w-3.5 h-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ─── Method Switcher (Email / Phone) ──────────────────────────── */
+function MethodSwitcher({
+  method,
+  onChange,
+}: {
+  method: LoginMethod
+  onChange: (m: LoginMethod) => void
+}) {
+  return (
+    <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
+      {(
+        [
+          { id: 'email', label: 'Email',        Icon: Mail },
+          { id: 'phone', label: 'Phone OTP',    Icon: Smartphone },
+        ] as const
+      ).map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onChange(id)}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-[9px] text-[12.5px] font-medium transition-all duration-200',
+            method === id
+              ? 'bg-white text-slate-800 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700',
           )}
         >
           <Icon className="w-3.5 h-3.5" />
@@ -234,36 +259,171 @@ function GoogleIcon() {
 /* ─── Right Panel / Form ───────────────────────────────────────── */
 function LoginForm() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<LoginTab>('company')
-  const [email, setEmail] = useState('')
+  const { login, loginWithGoogle, sendOtp, verifyOtp, profile, loading: authLoading } = useAuth()
+
+  const [tab,    setTab]    = useState<LoginTab>('company')
+  const [method, setMethod] = useState<LoginMethod>('email')
+
+  /* Email / password */
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
-  const [showPw, setShowPw] = useState(false)
+  const [showPw,   setShowPw]   = useState(false)
+
+  /* Phone OTP */
+  const [phone,     setPhone]     = useState('')
+  const [otp,       setOtp]       = useState('')
+  const [otpSent,   setOtpSent]   = useState(false)
+  const [countdown, setCountdown] = useState(0)
+
+  /* Shared */
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(false)
+  const [done,    setDone]    = useState(false)
+  const [error,   setError]   = useState('')
+  const [googleLoading, setGoogleLoading] = useState(false)
 
   const isSuper = tab === 'superadmin'
 
+  /* Redirect if already logged in */
+  useEffect(() => {
+    if (!authLoading && profile) {
+      if (profile.role === 'superadmin')       navigate('/super-admin',                    { replace: true })
+      else if (profile.role === 'admin')        navigate(`/${profile.tenantSlug}/dashboard`, { replace: true })
+      else                                      navigate(`/${profile.tenantSlug}/my-dashboard`, { replace: true })
+    }
+  }, [authLoading, profile, navigate])
+
+  /* OTP resend countdown */
+  useEffect(() => {
+    if (countdown <= 0) return
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [countdown])
+
+  /* Reset phone state when switching tabs / methods */
+  useEffect(() => {
+    setError('')
+    setOtpSent(false)
+    setOtp('')
+    setPhone('')
+    setCountdown(0)
+    if (isSuper) setMethod('email')
+  }, [tab, isSuper])
+
+  useEffect(() => {
+    setError('')
+    setOtpSent(false)
+    setOtp('')
+    setPhone('')
+    setCountdown(0)
+  }, [method])
+
   const accent = isSuper
     ? { ring: 'focus-visible:ring-amber-500/40', btn: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25' }
-    : { ring: 'focus-visible:ring-blue-500/40', btn: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25' }
+    : { ring: 'focus-visible:ring-blue-500/40',  btn: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25' }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    await new Promise((r) => setTimeout(r, 1800))
-    setLoading(false)
+  /* Navigate after success */
+  function handleRedirect(p: { role: string; tenantSlug?: string | null }) {
     setDone(true)
     setTimeout(() => {
-      if (isSuper) {
-        navigate('/super-admin')
-      } else {
-        navigate('/dashboard')
-      }
-    }, 600)
+      if (p.role === 'superadmin')       navigate('/super-admin')
+      else if (p.role === 'admin')       navigate(`/${p.tenantSlug}/dashboard`)
+      else                               navigate(`/${p.tenantSlug}/my-dashboard`)
+    }, 700)
+  }
+
+  /* ── Google Sign-In ────────────────────────────────────────── */
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true)
+    setError('')
+    const result = await loginWithGoogle()
+    setGoogleLoading(false)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    if (result.profile) handleRedirect(result.profile)
+  }
+
+  /* ── Email + Password submit ─────────────────────────────────── */
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    const result = await login(email, password)
+
+    if (result.error) {
+      setError(result.error)
+      setLoading(false)
+      return
+    }
+
+    const p = result.profile!
+
+    if (isSuper && p.role !== 'superadmin') {
+      setError('This account is not a Super Admin account.')
+      setLoading(false)
+      return
+    }
+
+    setLoading(false)
+    handleRedirect(p)
+  }
+
+  /* ── Phone OTP — Send ────────────────────────────────────────── */
+  const handleSendOtp = async () => {
+    const trimmed = phone.trim()
+    if (!trimmed) { setError('Please enter your phone number.'); return }
+
+    setLoading(true)
+    setError('')
+
+    const result = await sendOtp(trimmed, 'recaptcha-container')
+
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    setOtpSent(true)
+    setCountdown(30)
+  }
+
+  /* ── Phone OTP — Verify ──────────────────────────────────────── */
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = otp.trim()
+    if (trimmed.length < 6) { setError('Enter the 6-digit OTP sent to your phone.'); return }
+
+    setLoading(true)
+    setError('')
+
+    const result = await verifyOtp(trimmed)
+
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    handleRedirect(result.profile!)
+  }
+
+  /* ── Resend OTP ──────────────────────────────────────────────── */
+  const handleResendOtp = async () => {
+    setOtp('')
+    setError('')
+    await handleSendOtp()
   }
 
   return (
     <div className="w-full flex flex-col">
+      {/* Invisible reCAPTCHA container */}
+      <div id="recaptcha-container" />
+
       {/* Mobile Logo */}
       <div className="flex lg:hidden items-center gap-2 mb-6">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
@@ -306,7 +466,7 @@ function LoginForm() {
               </p>
             </div>
 
-            {/* Google Sign-In — only for company login */}
+            {/* Google Sign-In — company only */}
             {!isSuper && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
@@ -315,130 +475,326 @@ function LoginForm() {
               >
                 <motion.button
                   type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading}
                   whileHover={{ scale: 1.01, boxShadow: '0 4px 16px rgba(0,0,0,0.10)' }}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[13.5px] font-medium text-slate-700 transition-colors duration-150 shadow-sm"
+                  className="w-full h-11 flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[13.5px] font-medium text-slate-700 transition-colors duration-150 shadow-sm disabled:opacity-70"
                 >
-                  <GoogleIcon />
-                  Continue with Google
+                  {googleLoading
+                    ? <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                    : <GoogleIcon />}
+                  {googleLoading ? 'Connecting...' : 'Continue with Google'}
                 </motion.button>
 
-                {/* Divider */}
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 h-px bg-slate-100" />
                   <span className="text-[11px] text-slate-400 font-medium tracking-wide">OR</span>
                   <div className="flex-1 h-px bg-slate-100" />
                 </div>
+
+                {/* Method toggle (Email / Phone OTP) */}
+                <MethodSwitcher method={method} onChange={setMethod} />
               </motion.div>
             )}
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email */}
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[12.5px] font-medium text-slate-700">
-                  {isSuper ? 'Admin Email' : 'Work Email'}
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={isSuper ? 'admin@yourcompany.com' : 'you@company.com'}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className={cn(
-                    'h-10 px-3.5 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl transition-all duration-200',
-                    'focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:bg-white',
-                    accent.ring,
-                    isSuper && 'border-amber-200 focus-visible:border-amber-300',
-                  )}
-                />
-              </div>
-
-              {/* Password */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-[12.5px] font-medium text-slate-700">
-                    Password
-                  </Label>
-                  <button
-                    type="button"
-                    className="text-[12px] text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPw ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className={cn(
-                      'h-10 pl-3.5 pr-10 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl transition-all duration-200',
-                      'focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:bg-white',
-                      accent.ring,
-                      isSuper && 'border-amber-200 focus-visible:border-amber-300',
-                    )}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((p) => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    tabIndex={-1}
-                  >
-                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Super Admin security notice */}
-              {isSuper && (
+            {/* Error banner */}
+            <AnimatePresence>
+              {error && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3"
+                  initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  className="flex items-start gap-2.5 bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4"
                 >
-                  <Lock className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                  <p className="text-[11.5px] text-amber-800 leading-relaxed">
-                    All sessions are monitored & logged with a full audit trail. Unauthorized attempts are reported.
-                  </p>
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <p className="text-[12.5px] text-rose-700 font-medium">{error}</p>
                 </motion.div>
               )}
+            </AnimatePresence>
 
-              {/* Submit */}
-              <motion.button
-                type="submit"
-                disabled={loading}
-                whileTap={{ scale: 0.985 }}
-                className={cn(
-                  'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold transition-all duration-200 mt-1',
-                  'flex items-center justify-center gap-2',
-                  'disabled:opacity-70 disabled:cursor-not-allowed',
-                  accent.btn,
-                )}
-              >
-                <AnimatePresence mode="wait">
-                  {loading ? (
-                    <motion.span key="l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Signing in...
-                    </motion.span>
-                  ) : done ? (
-                    <motion.span key="d" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" /> Authenticated!
-                    </motion.span>
-                  ) : (
-                    <motion.span key="i" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-1.5">
-                      {isSuper ? 'Secure Admin Access' : 'Continue'}
-                      <ChevronRight className="w-4 h-4" />
-                    </motion.span>
+            {/* ── Email + Password Form ── */}
+            <AnimatePresence mode="wait">
+              {(method === 'email' || isSuper) && (
+                <motion.form
+                  key="email-form"
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={{ duration: 0.2 }}
+                  onSubmit={handleEmailSubmit}
+                  className="space-y-4"
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-[12.5px] font-medium text-slate-700">
+                      {isSuper ? 'Admin Email' : 'Work Email'}
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder={isSuper ? 'admin@yourcompany.com' : 'you@company.com'}
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setError('') }}
+                      required
+                      className={cn(
+                        'h-10 px-3.5 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl transition-all duration-200',
+                        'focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:bg-white',
+                        accent.ring,
+                        isSuper && 'border-amber-200 focus-visible:border-amber-300',
+                      )}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-[12.5px] font-medium text-slate-700">
+                        Password
+                      </Label>
+                      <button
+                        type="button"
+                        className="text-[12px] text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPw ? 'text' : 'password'}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className={cn(
+                          'h-10 pl-3.5 pr-10 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl transition-all duration-200',
+                          'focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:bg-white',
+                          accent.ring,
+                          isSuper && 'border-amber-200 focus-visible:border-amber-300',
+                        )}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPw((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isSuper && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-[11.5px] text-amber-800 leading-relaxed">
+                        All sessions are monitored & logged with a full audit trail. Unauthorized attempts are reported.
+                      </p>
+                    </motion.div>
                   )}
-                </AnimatePresence>
-              </motion.button>
-            </form>
+
+                  <motion.button
+                    type="submit"
+                    disabled={loading}
+                    whileTap={{ scale: 0.985 }}
+                    className={cn(
+                      'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold transition-all duration-200 mt-1',
+                      'flex items-center justify-center gap-2',
+                      'disabled:opacity-70 disabled:cursor-not-allowed',
+                      accent.btn,
+                    )}
+                  >
+                    <AnimatePresence mode="wait">
+                      {loading ? (
+                        <motion.span key="l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Signing in...
+                        </motion.span>
+                      ) : done ? (
+                        <motion.span key="d" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4" /> Authenticated!
+                        </motion.span>
+                      ) : (
+                        <motion.span key="i" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-1.5">
+                          {isSuper ? 'Secure Admin Access' : 'Continue'}
+                          <ChevronRight className="w-4 h-4" />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+                </motion.form>
+              )}
+
+              {/* ── Phone OTP Form ── */}
+              {method === 'phone' && !isSuper && (
+                <motion.div
+                  key="phone-form"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -12 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <AnimatePresence mode="wait">
+                    {/* Step 1: Enter phone number */}
+                    {!otpSent ? (
+                      <motion.div
+                        key="phone-step-1"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="space-y-4"
+                      >
+                        <div className="space-y-1.5">
+                          <Label htmlFor="phone" className="text-[12.5px] font-medium text-slate-700">
+                            Mobile Number
+                          </Label>
+                          <div className="flex gap-2">
+                            {/* Country code */}
+                            <div className="h-10 px-3 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-700 select-none shrink-0">
+                              +91
+                            </div>
+                            <Input
+                              id="phone"
+                              type="tel"
+                              inputMode="numeric"
+                              placeholder="98765 43210"
+                              value={phone}
+                              maxLength={10}
+                              onChange={(e) => {
+                                setPhone(e.target.value.replace(/\D/g, ''))
+                                setError('')
+                              }}
+                              className="h-10 px-3.5 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/40 focus-visible:bg-white flex-1"
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400">
+                            We'll send a 6-digit OTP to verify your number.
+                          </p>
+                        </div>
+
+                        <motion.button
+                          id="send-otp-btn"
+                          type="button"
+                          disabled={loading || phone.length < 10}
+                          onClick={handleSendOtp}
+                          whileTap={{ scale: 0.985 }}
+                          className={cn(
+                            'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold',
+                            'flex items-center justify-center gap-2 transition-all duration-200',
+                            'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700',
+                            'shadow-lg shadow-blue-500/25 disabled:opacity-60 disabled:cursor-not-allowed',
+                          )}
+                        >
+                          {loading ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Sending OTP...
+                            </>
+                          ) : (
+                            <>
+                              <Smartphone className="w-4 h-4" />
+                              Send OTP
+                            </>
+                          )}
+                        </motion.button>
+                      </motion.div>
+                    ) : (
+                      /* Step 2: Enter OTP */
+                      <motion.form
+                        key="phone-step-2"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onSubmit={handleVerifyOtp}
+                        className="space-y-4"
+                      >
+                        {/* Phone sent to info */}
+                        <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3">
+                          <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" />
+                          <p className="text-[12.5px] text-blue-700 font-medium">
+                            OTP sent to <span className="font-bold">+91 {phone}</span>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => { setOtpSent(false); setOtp(''); setError('') }}
+                            className="ml-auto text-[11.5px] text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
+                          >
+                            <ArrowLeft className="w-3 h-3" /> Change
+                          </button>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="otp" className="text-[12.5px] font-medium text-slate-700">
+                            Enter OTP
+                          </Label>
+                          <Input
+                            id="otp"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="• • • • • •"
+                            value={otp}
+                            maxLength={6}
+                            onChange={(e) => {
+                              setOtp(e.target.value.replace(/\D/g, ''))
+                              setError('')
+                            }}
+                            autoFocus
+                            className="h-12 px-4 text-[20px] font-bold tracking-[0.5em] text-center border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/40 focus-visible:bg-white"
+                          />
+                          <div className="flex items-center justify-between">
+                            <p className="text-[11px] text-slate-400">OTP expires in 10 minutes</p>
+                            {countdown > 0 ? (
+                              <span className="text-[11.5px] text-slate-400">
+                                Resend in <span className="font-semibold text-slate-600">{countdown}s</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={handleResendOtp}
+                                className="text-[11.5px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+                              >
+                                <RefreshCw className="w-3 h-3" /> Resend OTP
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <motion.button
+                          type="submit"
+                          disabled={loading || otp.length < 6}
+                          whileTap={{ scale: 0.985 }}
+                          className={cn(
+                            'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold',
+                            'flex items-center justify-center gap-2 transition-all duration-200',
+                            'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700',
+                            'shadow-lg shadow-blue-500/25 disabled:opacity-60 disabled:cursor-not-allowed',
+                          )}
+                        >
+                          <AnimatePresence mode="wait">
+                            {loading ? (
+                              <motion.span key="l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Verifying...
+                              </motion.span>
+                            ) : done ? (
+                              <motion.span key="d" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4" /> Authenticated!
+                              </motion.span>
+                            ) : (
+                              <motion.span key="i" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-1.5">
+                                <KeyRound className="w-4 h-4" />
+                                Verify & Sign In
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                        </motion.button>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Register link */}
             {!isSuper && (
@@ -480,7 +836,6 @@ export default function LoginPage() {
         <LeftPanel />
       </div>
 
-      {/* Right panel */}
       <motion.div
         initial={{ opacity: 0, x: 30 }}
         animate={{ opacity: 1, x: 0 }}

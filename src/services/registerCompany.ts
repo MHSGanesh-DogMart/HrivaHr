@@ -182,9 +182,11 @@ export async function registerCompany(payload: RegisterPayload): Promise<Registe
 
     console.log('[register] Tenant doc written ✅')
 
-    /* ── Step 4: Write user profile document as a subcollection ── */
-    console.log('[register] Step 4 – writing user profile: tenants/', slug, '/users/', uid)
-    await setDoc(doc(db, 'tenants', slug, 'users', uid), {
+    /* ── Step 4: Write user profile to top-level /users/{uid} ── */
+    // Top-level so we can look up role+tenantSlug immediately after login
+    // without knowing the tenant slug upfront.
+    console.log('[register] Step 4 – writing user profile: users/', uid)
+    await setDoc(doc(db, 'users', uid), {
       uid,
       tenantSlug:  slug,
       role:        'admin',

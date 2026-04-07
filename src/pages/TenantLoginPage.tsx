@@ -1,39 +1,45 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2, Eye, EyeOff, ChevronRight, CheckCircle2,
-  Shield, Users, Clock, ArrowLeft,
+  Shield, Users, Clock, ArrowLeft, AlertCircle,
+  Smartphone, Mail, KeyRound, RefreshCw,
 } from 'lucide-react'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { useAuth } from '@/context/AuthContext'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
-/* ─── Mock company data (replace with Firestore lookup later) ─── */
-const MOCK_COMPANIES: Record<string, {
-  name: string; industry: string; logo: string; color: string; gradient: string
-}> = {
-  petsaathi: {
-    name: 'PetSaathi',
-    industry: 'Technology & Software',
-    logo: '🐾',
-    color: '#6366f1',
-    gradient: 'from-indigo-600 to-violet-700',
-  },
-  doghouse: {
-    name: 'DogHouse Corp',
-    industry: 'Retail & E-commerce',
-    logo: '🏠',
-    color: '#0ea5e9',
-    gradient: 'from-sky-500 to-blue-700',
-  },
-  acme: {
-    name: 'Acme Technologies',
-    industry: 'Manufacturing',
-    logo: '⚙️',
-    color: '#10b981',
-    gradient: 'from-emerald-500 to-teal-700',
-  },
+type LoginMethod = 'email' | 'phone'
+
+/* ─── Industry → branding map ──────────────────────────────────── */
+function getTheme(industry: string): { gradient: string; color: string; logo: string } {
+  const map: Record<string, { gradient: string; color: string; logo: string }> = {
+    'Technology & Software':    { gradient: 'from-indigo-600 to-violet-700', color: '#6366f1', logo: '💻' },
+    'Healthcare & Pharma':      { gradient: 'from-emerald-600 to-teal-700',  color: '#059669', logo: '🏥' },
+    'Manufacturing':            { gradient: 'from-orange-600 to-amber-700',  color: '#d97706', logo: '⚙️' },
+    'Finance & Banking':        { gradient: 'from-blue-600 to-indigo-700',   color: '#2563eb', logo: '🏦' },
+    'Retail & E-commerce':      { gradient: 'from-sky-500 to-blue-700',      color: '#0ea5e9', logo: '🛍️' },
+    'Education':                { gradient: 'from-purple-600 to-violet-700', color: '#9333ea', logo: '📚' },
+    'Media & Entertainment':    { gradient: 'from-rose-500 to-pink-700',     color: '#f43f5e', logo: '🎬' },
+    'Logistics & Supply Chain': { gradient: 'from-yellow-600 to-orange-600', color: '#d97706', logo: '🚛' },
+    'Real Estate':              { gradient: 'from-slate-600 to-slate-800',   color: '#475569', logo: '🏢' },
+    'Construction':             { gradient: 'from-amber-600 to-yellow-700',  color: '#d97706', logo: '🏗️' },
+    'Hospitality':              { gradient: 'from-pink-600 to-rose-700',     color: '#db2777', logo: '🏨' },
+    'Consulting':               { gradient: 'from-cyan-600 to-blue-700',     color: '#0891b2', logo: '💼' },
+  }
+  return map[industry] ?? { gradient: 'from-blue-600 to-indigo-600', color: '#2563eb', logo: '🏢' }
+}
+
+interface TenantData {
+  companyName: string
+  industry: string
+  city: string
+  country: string
+  status: string
 }
 
 function GoogleIcon() {
@@ -47,21 +53,116 @@ function GoogleIcon() {
   )
 }
 
+/* ─── Method Switcher ──────────────────────────────────────────── */
+function MethodSwitcher({
+  method,
+  onChange,
+}: {
+  method: LoginMethod
+  onChange: (m: LoginMethod) => void
+}) {
+  return (
+    <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
+      {(
+        [
+          { id: 'email', label: 'Email',     Icon: Mail },
+          { id: 'phone', label: 'Phone OTP', Icon: Smartphone },
+        ] as const
+      ).map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onChange(id)}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-[9px] text-[12.5px] font-medium transition-all duration-200',
+            method === id
+              ? `bg-white text-slate-800 shadow-sm`
+              : 'text-slate-500 hover:text-slate-700',
+          )}
+        >
+          <Icon className={cn('w-3.5 h-3.5', method === id && 'text-slate-700')} />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function TenantLoginPage() {
   const { tenant } = useParams<{ tenant: string }>()
-  const navigate = useNavigate()
-  const slug = tenant?.toLowerCase() ?? ''
+  const navigate   = useNavigate()
+  const { login, sendOtp, verifyOtp, profile, loading: authLoading } = useAuth()
+  const slug       = tenant?.toLowerCase() ?? ''
 
-  const company = MOCK_COMPANIES[slug]
+  const [company,  setCompany]  = useState<TenantData | null>(null)
+  const [fetching, setFetching] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  const [email, setEmail]     = useState('')
+  const [method, setMethod] = useState<LoginMethod>('email')
+
+  /* Email / password */
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
-  const [showPw, setShowPw]   = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [done, setDone]       = useState(false)
-  const [notFound, setNotFound] = useState(!company)
+  const [showPw,   setShowPw]   = useState(false)
 
-  /* ── If company slug not recognized ── */
+  /* Phone OTP */
+  const [phone,     setPhone]     = useState('')
+  const [otp,       setOtp]       = useState('')
+  const [otpSent,   setOtpSent]   = useState(false)
+  const [countdown, setCountdown] = useState(0)
+
+  /* Shared */
+  const [loading, setLoading] = useState(false)
+  const [done,    setDone]    = useState(false)
+  const [error,   setError]   = useState('')
+
+  /* Redirect if already logged in */
+  useEffect(() => {
+    if (!authLoading && profile) {
+      if (profile.role === 'superadmin')      navigate('/super-admin',                    { replace: true })
+      else if (profile.role === 'admin')       navigate(`/${profile.tenantSlug}/dashboard`, { replace: true })
+      else                                     navigate(`/${profile.tenantSlug}/my-dashboard`, { replace: true })
+    }
+  }, [authLoading, profile, navigate])
+
+  /* Fetch tenant from Firestore */
+  useEffect(() => {
+    if (!slug) { setNotFound(true); setFetching(false); return }
+    getDoc(doc(db, 'tenants', slug))
+      .then((snap) => {
+        if (snap.exists()) setCompany(snap.data() as TenantData)
+        else setNotFound(true)
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setFetching(false))
+  }, [slug])
+
+  /* OTP resend countdown */
+  useEffect(() => {
+    if (countdown <= 0) return
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [countdown])
+
+  /* Reset phone state when method changes */
+  useEffect(() => {
+    setError('')
+    setOtpSent(false)
+    setOtp('')
+    setPhone('')
+    setCountdown(0)
+  }, [method])
+
+  /* ── Loading screen ── */
+  if (fetching) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-[3px] border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  /* ── Not found screen ── */
   if (notFound) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -99,17 +200,105 @@ export default function TenantLoginPage() {
     )
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const theme = getTheme(company!.industry)
+
+  /* Navigate after success */
+  function handleRedirect(p: { role: string; tenantSlug?: string | null }) {
+    setDone(true)
+    setTimeout(() => {
+      if (p.role === 'superadmin')       navigate('/super-admin')
+      else if (p.role === 'admin')       navigate(`/${p.tenantSlug}/dashboard`)
+      else                               navigate(`/${p.tenantSlug}/my-dashboard`)
+    }, 800)
+  }
+
+  /* ── Email + Password ── */
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 1600))
+    setError('')
+
+    const result = await login(email, password)
+
+    if (result.error) {
+      setError(result.error)
+      setLoading(false)
+      return
+    }
+
+    const p = result.profile!
+
+    if (p.role !== 'superadmin' && p.tenantSlug !== slug) {
+      setError("This account belongs to a different workspace. Please use your company's login URL.")
+      setLoading(false)
+      return
+    }
+
     setLoading(false)
-    setDone(true)
-    setTimeout(() => navigate(`/${slug}/dashboard`), 600)
+    handleRedirect(p)
+  }
+
+  /* ── Phone OTP — Send ── */
+  const handleSendOtp = async () => {
+    const trimmed = phone.trim()
+    if (!trimmed) { setError('Please enter your phone number.'); return }
+
+    setLoading(true)
+    setError('')
+
+    const result = await sendOtp(trimmed, 'recaptcha-container-tenant')
+
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    setOtpSent(true)
+    setCountdown(30)
+  }
+
+  /* ── Phone OTP — Verify ── */
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = otp.trim()
+    if (trimmed.length < 6) { setError('Enter the 6-digit OTP sent to your phone.'); return }
+
+    setLoading(true)
+    setError('')
+
+    const result = await verifyOtp(trimmed)
+
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    const p = result.profile!
+    if (p.role !== 'superadmin' && p.tenantSlug !== slug) {
+      setError('This phone is registered with a different workspace.')
+      setLoading(false)
+      return
+    }
+
+    handleRedirect(p)
+  }
+
+  /* ── Resend OTP ── */
+  const handleResendOtp = async () => {
+    setOtp('')
+    setError('')
+    await handleSendOtp()
   }
 
   return (
     <div className="min-h-screen flex overflow-hidden">
+      {/* Invisible reCAPTCHA container */}
+      <div id="recaptcha-container-tenant" />
+
       {/* ── Left Panel — Company Branded ── */}
       <motion.div
         initial={{ opacity: 0, x: -30 }}
@@ -117,10 +306,9 @@ export default function TenantLoginPage() {
         transition={{ duration: 0.5 }}
         className={cn(
           'hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden',
-          `bg-gradient-to-br ${company.gradient}`,
+          `bg-gradient-to-br ${theme.gradient}`,
         )}
       >
-        {/* Dot pattern */}
         <div
           className="absolute inset-0 opacity-10"
           style={{
@@ -129,18 +317,18 @@ export default function TenantLoginPage() {
           }}
         />
 
-        {/* Top: Platform branding */}
+        {/* Platform branding */}
         <div className="relative">
           <div className="flex items-center gap-2.5 mb-1">
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
               <Building2 className="w-4 h-4 text-white" />
             </div>
-            <span className="text-white/90 font-semibold text-[15px]">HRPortal</span>
+            <span className="text-white/90 font-semibold text-[15px]">HrivaHr</span>
           </div>
-          <p className="text-white/50 text-[11px]">Powered by HRiVaHR</p>
+          <p className="text-white/50 text-[11px]">Multi-tenant HR Platform</p>
         </div>
 
-        {/* Center: Company identity */}
+        {/* Company identity */}
         <div className="relative text-center">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
@@ -148,7 +336,7 @@ export default function TenantLoginPage() {
             transition={{ delay: 0.2, duration: 0.4 }}
             className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-6 text-5xl shadow-2xl"
           >
-            {company.logo}
+            {theme.logo}
           </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 10 }}
@@ -156,7 +344,7 @@ export default function TenantLoginPage() {
             transition={{ delay: 0.3 }}
             className="text-4xl font-bold text-white tracking-tight mb-2"
           >
-            {company.name}
+            {company!.companyName}
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}
@@ -164,10 +352,9 @@ export default function TenantLoginPage() {
             transition={{ delay: 0.4 }}
             className="text-white/70 text-[15px]"
           >
-            {company.industry}
+            {company!.industry} · {company!.city}, {company!.country}
           </motion.p>
 
-          {/* Workspace URL badge */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -181,12 +368,12 @@ export default function TenantLoginPage() {
           </motion.div>
         </div>
 
-        {/* Bottom: Stats */}
+        {/* Stats */}
         <div className="relative grid grid-cols-3 gap-3">
           {[
-            { icon: Users, label: 'Employees', value: '142' },
-            { icon: Clock, label: 'Attendance', value: '98%' },
-            { icon: Shield, label: 'Secure', value: 'SSL' },
+            { icon: Users,  label: 'Employees', value: '—' },
+            { icon: Clock,  label: 'Attendance', value: '—' },
+            { icon: Shield, label: 'Secure',     value: 'SSL' },
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
@@ -213,40 +400,36 @@ export default function TenantLoginPage() {
         <div className="w-full max-w-[400px]">
           {/* Mobile: company identity */}
           <div className="flex lg:hidden items-center gap-3 mb-6">
-            <div
-              className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-gradient-to-br', company.gradient)}
-            >
-              {company.logo}
+            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-gradient-to-br', theme.gradient)}>
+              {theme.logo}
             </div>
             <div>
-              <p className="font-bold text-slate-800 text-[15px]">{company.name}</p>
-              <p className="text-[11px] text-slate-500">{company.industry}</p>
+              <p className="font-bold text-slate-800 text-[15px]">{company!.companyName}</p>
+              <p className="text-[11px] text-slate-500">{company!.industry}</p>
             </div>
           </div>
 
           {/* Card */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xl shadow-slate-200/60 p-8">
             {/* Heading */}
-            <div className="mb-7">
-              <div
-                className={cn(
-                  'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg mb-4 text-white text-[11px] font-semibold bg-gradient-to-r',
-                  company.gradient,
-                )}
-              >
-                <span className="text-base">{company.logo}</span>
-                {company.name} Workspace
+            <div className="mb-6">
+              <div className={cn(
+                'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg mb-4 text-white text-[11px] font-semibold bg-gradient-to-r',
+                theme.gradient,
+              )}>
+                <span className="text-base">{theme.logo}</span>
+                {company!.companyName} Workspace
               </div>
               <h2 className="text-[22px] font-bold text-slate-900 tracking-tight">Welcome back</h2>
               <p className="text-slate-500 text-[13px] mt-1">
-                Sign in to your <span className="font-semibold text-slate-700">{company.name}</span> HR workspace.
+                Sign in to your <span className="font-semibold text-slate-700">{company!.companyName}</span> HR workspace.
               </p>
             </div>
 
             {/* Google Sign-In */}
             <motion.button
               type="button"
-              whileHover={{ scale: 1.01, boxShadow: '0 4px 16px rgba(0,0,0,0.10)' }}
+              whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
               className="w-full h-11 flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[13.5px] font-medium text-slate-700 transition-colors mb-5 shadow-sm"
             >
@@ -261,87 +444,285 @@ export default function TenantLoginPage() {
               <div className="flex-1 h-px bg-slate-100" />
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[12.5px] font-medium text-slate-700">
-                  Work Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={`you@${slug}.com`}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="h-10 px-3.5 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/30 focus-visible:border-blue-400"
-                />
-              </div>
+            {/* Method toggle */}
+            <MethodSwitcher method={method} onChange={setMethod} />
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-[12.5px] font-medium text-slate-700">
-                    Password
-                  </Label>
-                  <button type="button" className="text-[12px] text-blue-600 hover:text-blue-700 font-medium">
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPw ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="h-10 pl-3.5 pr-10 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/30 focus-visible:border-blue-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((p) => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    tabIndex={-1}
+            {/* Error banner */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="flex items-start gap-2.5 bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4"
+                >
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <p className="text-[12.5px] text-rose-700 font-medium">{error}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              {/* ── Email + Password Form ── */}
+              {method === 'email' && (
+                <motion.form
+                  key="email-form"
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={{ duration: 0.2 }}
+                  onSubmit={handleEmailLogin}
+                  className="space-y-4"
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-[12.5px] font-medium text-slate-700">
+                      Work Email
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder={`you@${slug}.com`}
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setError('') }}
+                      required
+                      className="h-10 px-3.5 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/40 focus-visible:bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-[12.5px] font-medium text-slate-700">
+                        Password
+                      </Label>
+                      <button type="button" className="text-[12px] text-blue-600 hover:text-blue-700 font-medium transition-colors">
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPw ? 'text' : 'password'}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); setError('') }}
+                        required
+                        className="h-10 pl-3.5 pr-10 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/40 focus-visible:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPw((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    type="submit"
+                    disabled={loading}
+                    whileTap={{ scale: 0.985 }}
+                    className={cn(
+                      'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold mt-1',
+                      'flex items-center justify-center gap-2 transition-all duration-200',
+                      'disabled:opacity-70 disabled:cursor-not-allowed',
+                      `bg-gradient-to-r ${theme.gradient}`,
+                      'shadow-lg hover:shadow-xl',
+                    )}
                   >
-                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+                    <AnimatePresence mode="wait">
+                      {loading ? (
+                        <motion.span key="l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Signing in…
+                        </motion.span>
+                      ) : done ? (
+                        <motion.span key="d" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4" /> Welcome back!
+                        </motion.span>
+                      ) : (
+                        <motion.span key="i" className="flex items-center gap-1.5">
+                          Sign in to {company!.companyName}
+                          <ChevronRight className="w-4 h-4" />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+                </motion.form>
+              )}
 
-              <motion.button
-                type="submit"
-                disabled={loading}
-                whileTap={{ scale: 0.985 }}
-                className={cn(
-                  'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold mt-1',
-                  'flex items-center justify-center gap-2 transition-all duration-200',
-                  'disabled:opacity-70 disabled:cursor-not-allowed',
-                  `bg-gradient-to-r ${company.gradient}`,
-                  'shadow-lg hover:shadow-xl',
-                )}
-              >
-                <AnimatePresence mode="wait">
-                  {loading ? (
-                    <motion.span key="l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Signing in...
-                    </motion.span>
-                  ) : done ? (
-                    <motion.span key="d" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" /> Welcome back!
-                    </motion.span>
-                  ) : (
-                    <motion.span key="i" className="flex items-center gap-1.5">
-                      Sign in to {company.name}
-                      <ChevronRight className="w-4 h-4" />
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-            </form>
+              {/* ── Phone OTP Form ── */}
+              {method === 'phone' && (
+                <motion.div
+                  key="phone-form"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -12 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <AnimatePresence mode="wait">
+                    {/* Step 1: Enter phone */}
+                    {!otpSent ? (
+                      <motion.div
+                        key="phone-step-1"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="space-y-4"
+                      >
+                        <div className="space-y-1.5">
+                          <Label htmlFor="phone" className="text-[12.5px] font-medium text-slate-700">
+                            Mobile Number
+                          </Label>
+                          <div className="flex gap-2">
+                            <div className="h-10 px-3 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-700 select-none shrink-0">
+                              +91
+                            </div>
+                            <Input
+                              id="phone"
+                              type="tel"
+                              inputMode="numeric"
+                              placeholder="98765 43210"
+                              value={phone}
+                              maxLength={10}
+                              onChange={(e) => {
+                                setPhone(e.target.value.replace(/\D/g, ''))
+                                setError('')
+                              }}
+                              className="h-10 px-3.5 text-[13.5px] border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/40 focus-visible:bg-white flex-1"
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400">
+                            We'll send a 6-digit OTP to verify your number.
+                          </p>
+                        </div>
+
+                        <motion.button
+                          id="send-otp-btn-tenant"
+                          type="button"
+                          disabled={loading || phone.length < 10}
+                          onClick={handleSendOtp}
+                          whileTap={{ scale: 0.985 }}
+                          className={cn(
+                            'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold',
+                            'flex items-center justify-center gap-2 transition-all duration-200',
+                            `bg-gradient-to-r ${theme.gradient}`,
+                            'shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed',
+                          )}
+                        >
+                          {loading ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Sending OTP...
+                            </>
+                          ) : (
+                            <>
+                              <Smartphone className="w-4 h-4" />
+                              Send OTP
+                            </>
+                          )}
+                        </motion.button>
+                      </motion.div>
+                    ) : (
+                      /* Step 2: Enter OTP */
+                      <motion.form
+                        key="phone-step-2"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onSubmit={handleVerifyOtp}
+                        className="space-y-4"
+                      >
+                        {/* Sent-to info */}
+                        <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3">
+                          <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" />
+                          <p className="text-[12.5px] text-blue-700 font-medium">
+                            OTP sent to <span className="font-bold">+91 {phone}</span>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => { setOtpSent(false); setOtp(''); setError('') }}
+                            className="ml-auto text-[11.5px] text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
+                          >
+                            <ArrowLeft className="w-3 h-3" /> Change
+                          </button>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="otp" className="text-[12.5px] font-medium text-slate-700">
+                            Enter OTP
+                          </Label>
+                          <Input
+                            id="otp"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="• • • • • •"
+                            value={otp}
+                            maxLength={6}
+                            onChange={(e) => {
+                              setOtp(e.target.value.replace(/\D/g, ''))
+                              setError('')
+                            }}
+                            autoFocus
+                            className="h-12 px-4 text-[20px] font-bold tracking-[0.5em] text-center border-slate-200 bg-slate-50/50 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-blue-500/40 focus-visible:bg-white"
+                          />
+                          <div className="flex items-center justify-between">
+                            <p className="text-[11px] text-slate-400">OTP expires in 10 minutes</p>
+                            {countdown > 0 ? (
+                              <span className="text-[11.5px] text-slate-400">
+                                Resend in <span className="font-semibold text-slate-600">{countdown}s</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={handleResendOtp}
+                                className="text-[11.5px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+                              >
+                                <RefreshCw className="w-3 h-3" /> Resend OTP
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <motion.button
+                          type="submit"
+                          disabled={loading || otp.length < 6}
+                          whileTap={{ scale: 0.985 }}
+                          className={cn(
+                            'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold',
+                            'flex items-center justify-center gap-2 transition-all duration-200',
+                            `bg-gradient-to-r ${theme.gradient}`,
+                            'shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed',
+                          )}
+                        >
+                          <AnimatePresence mode="wait">
+                            {loading ? (
+                              <motion.span key="l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Verifying...
+                              </motion.span>
+                            ) : done ? (
+                              <motion.span key="d" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4" /> Welcome back!
+                              </motion.span>
+                            ) : (
+                              <motion.span key="i" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-1.5">
+                                <KeyRound className="w-4 h-4" />
+                                Verify & Sign In
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                        </motion.button>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Back link + workspace URL */}
+          {/* Footer links */}
           <div className="mt-5 space-y-3">
             <button
               onClick={() => navigate('/')}

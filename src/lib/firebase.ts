@@ -5,6 +5,7 @@ import { getFirestore } from 'firebase/firestore'
 const firebaseConfig = {
   apiKey: "AIzaSyA4vyW609Kh4N6Z_v8CWoXmJuArqeN58kc",
   authDomain: "hrivahr.firebaseapp.com",
+  databaseURL: "https://hrivahr-default-rtdb.firebaseio.com",
   projectId: "hrivahr",
   storageBucket: "hrivahr.firebasestorage.app",
   messagingSenderId: "1027640189714",

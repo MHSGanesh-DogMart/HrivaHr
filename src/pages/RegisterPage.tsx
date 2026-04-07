@@ -800,53 +800,69 @@ export default function RegisterPage() {
   }
 
   async function handleSubmit() {
+    console.log('[DEBUG] 👉 Launch Workspace button clicked');
     const errors = validateStep(5, form)
-    if (errors.length > 0) { setStepErrors(errors); return }
+    if (errors.length > 0) { 
+      console.log('[DEBUG] ❌ Validation errors on Step 5:', errors);
+      setStepErrors(errors); 
+      return; 
+    }
 
+    console.log('[DEBUG] Form is valid. Setting loading state...');
     setSubmitting(true)
     setSubmitError('')
 
-    const result = await registerCompany({
-      companyName:    form.companyName,
-      legalName:      form.legalName,
-      companyType:    form.companyType,
-      industry:       form.industry,
-      companySize:    form.companySize,
-      website:        form.website,
-      description:    form.description,
-      address:        form.address,
-      city:           form.city,
-      state:          form.state,
-      country:        form.country,
-      pincode:        form.pincode,
-      phone:          form.phone,
-      hrEmail:        form.hrEmail,
-      workWeek:       form.workWeek,
-      hoursPerDay:    form.hoursPerDay,
-      shifts:         form.shifts,
-      leavePolicy:    form.leavePolicy,
-      payrollCycle:   form.payrollCycle,
-      fyStart:        form.fyStart,
-      overtimeEnabled: form.overtimeEnabled,
-      adminFirstName: form.adminFirstName,
-      adminLastName:  form.adminLastName,
-      adminEmail:     form.adminEmail,
-      adminPhone:     form.adminPhone,
-      adminTitle:     form.adminTitle,
-      password:       form.password,
-      plan:           form.plan,
-      promoCode:      form.promoCode,
-    })
+    console.log('[DEBUG] 🔄 Awaiting registerCompany() call...');
+    try {
+      const result = await registerCompany({
+        companyName:    form.companyName,
+        legalName:      form.legalName,
+        companyType:    form.companyType,
+        industry:       form.industry,
+        companySize:    form.companySize,
+        website:        form.website,
+        description:    form.description,
+        address:        form.address,
+        city:           form.city,
+        state:          form.state,
+        country:        form.country,
+        pincode:        form.pincode,
+        phone:          form.phone,
+        hrEmail:        form.hrEmail,
+        workWeek:       form.workWeek,
+        hoursPerDay:    form.hoursPerDay,
+        shifts:         form.shifts,
+        leavePolicy:    form.leavePolicy,
+        payrollCycle:   form.payrollCycle,
+        fyStart:        form.fyStart,
+        overtimeEnabled: form.overtimeEnabled,
+        adminFirstName: form.adminFirstName,
+        adminLastName:  form.adminLastName,
+        adminEmail:     form.adminEmail,
+        adminPhone:     form.adminPhone,
+        adminTitle:     form.adminTitle,
+        password:       form.password,
+        plan:           form.plan,
+        promoCode:      form.promoCode,
+      })
 
-    setSubmitting(false)
+      console.log('[DEBUG] ✅ registerCompany() returned:', result);
+      setSubmitting(false)
 
-    if (!result.success) {
-      setSubmitError(result.error ?? 'Registration failed. Please try again.')
-      return
+      if (!result.success) {
+        console.warn('[DEBUG] ⚠️ Registration failed in service:', result.error);
+        setSubmitError(result.error ?? 'Registration failed. Please try again.')
+        return
+      }
+
+      console.log('[DEBUG] 🎉 Registration completely successful! Redirecting...');
+      setSubmitted(true)
+      setTimeout(() => navigate(`/${result.slug}/dashboard`), 2500)
+    } catch (err) {
+      console.error('[DEBUG] 💥 Unhandled exception in handleSubmit:', err);
+      setSubmitting(false);
+      setSubmitError('An unexpected error occurred. Please check console.');
     }
-
-    setSubmitted(true)
-    setTimeout(() => navigate(`/${result.slug}/dashboard`), 2500)
   }
 
   const variants = {
