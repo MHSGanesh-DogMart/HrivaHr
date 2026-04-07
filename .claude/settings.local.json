@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "Bash(npx shadcn@latest init --yes)",
-      "Bash(npx shadcn@latest init --yes --defaults)"
+      "Bash(npx shadcn@latest init --yes --defaults)",
+      "Bash(npx shadcn@latest add input label --yes)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest add card badge avatar table dialog select dropdown-menu tabs progress separator sheet skeleton --yes)",
+      "Bash(node -e \"const s = require\\(''@base-ui/react/select''\\); console.log\\(Object.keys\\(s.Root.propTypes || {}\\)\\)\")",
+      "Bash(node -e \"import\\(''@base-ui/react/select''\\).then\\(s => console.log\\(Object.keys\\(s\\)\\)\\)\")",
+      "Bash(grep -rn \"onValueChange\\\\|onChange\" 'D:\\\\Hemanth Play Store\\\\Hr Portal/node_modules/@base-ui/react' --include=*.d.ts -l)",
+      "Bash(grep -rn \"onValueChange\\\\|onChange\\\\|value.*null\" 'D:\\\\Hemanth Play Store\\\\Hr Portal/node_modules/@base-ui/react/dist' --include=*.d.ts)",
+      "Bash(find 'D:\\\\Hemanth Play Store\\\\Hr Portal/node_modules/@base-ui/react' -name *.d.ts -path *select*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(echo \"Exit code: $?\")"
     ]
   }
 }
