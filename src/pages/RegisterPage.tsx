@@ -226,7 +226,7 @@ function StepCompanyIdentity({ form, update }: { form: FormData; update: (k: key
         <TextField label="Company Subdomain" required placeholder="acme"
           value={form.companyName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}
           onChange={() => {}} icon={Hash}
-          hint="Your login URL: acme.hrportal.in" />
+          hint="Your login URL: acme.hrivahr.in" />
       </div>
       <TextareaField label="Company Description" placeholder="Brief description of what your company does..."
         value={form.description} onChange={(v) => update('description', v)} />
@@ -631,7 +631,7 @@ function StepPlanLaunch({ form, update }: { form: FormData; update: (k: keyof Fo
           <span className="text-blue-600 font-semibold underline underline-offset-2">Terms of Service</span>
           {' '}and{' '}
           <span className="text-blue-600 font-semibold underline underline-offset-2">Privacy Policy</span>.
-          I confirm that I am authorized to register this company on HRPortal.
+          I confirm that I am authorized to register this company on HrivaHr.
         </p>
       </button>
     </div>
@@ -735,7 +735,7 @@ export default function RegisterPage() {
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/25">
             <Building2 className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-[17px] text-slate-800">HR<span className="text-blue-600">Portal</span></span>
+          <span className="font-bold text-[17px] text-slate-800">Hriva<span className="text-blue-600">Hr</span></span>
         </div>
         <div className="flex items-center gap-3">
           <p className="text-[12px] text-slate-500 hidden sm:block">Already have an account?</p>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Search, SlidersHorizontal, Eye, Pencil,
   ChevronLeft, ChevronRight, LayoutGrid, List,
-  Mail, MapPin, Calendar, Phone,
+  Mail, MapPin, Calendar,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'

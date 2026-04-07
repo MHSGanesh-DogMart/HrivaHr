@@ -95,7 +95,7 @@ function LeftPanel() {
             <Building2 className="w-5 h-5 text-white" />
           </div>
           <span className="text-white font-semibold text-xl tracking-tight">
-            HR<span className="text-blue-400">Portal</span>
+            Hriva<span className="text-blue-400">Hr</span>
           </span>
         </motion.div>
 
@@ -168,7 +168,7 @@ function LeftPanel() {
 
         {/* Footer */}
         <p className="text-slate-600 text-[11px] mt-6 text-center">
-          © {new Date().getFullYear()} HRPortal. Trusted by 10,000+ companies worldwide.
+          © {new Date().getFullYear()} HrivaHr. Trusted by 10,000+ companies worldwide.
         </p>
       </div>
     </div>
@@ -270,7 +270,7 @@ function LoginForm() {
           <Building2 className="w-4 h-4 text-white" />
         </div>
         <span className="font-semibold text-lg text-slate-800">
-          HR<span className="text-blue-600">Portal</span>
+          Hriva<span className="text-blue-600">Hr</span>
         </span>
       </div>
 
@@ -459,7 +459,7 @@ function LoginForm() {
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-5 px-1">
-        <span className="text-[11px] text-slate-400">© {new Date().getFullYear()} HRPortal</span>
+        <span className="text-[11px] text-slate-400">© {new Date().getFullYear()} HrivaHr</span>
         <div className="flex gap-4">
           {['Privacy', 'Terms', 'Help'].map((l) => (
             <button key={l} className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors">

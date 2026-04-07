@@ -154,7 +154,7 @@ function Sidebar({ role, setRole, collapsed, setCollapsed }: {
                 transition={{ duration: 0.18 }}
                 className="text-white font-semibold text-[15px] tracking-tight whitespace-nowrap"
               >
-                HR<span className="text-blue-400">Portal</span>
+                Hriva<span className="text-blue-400">Hr</span>
               </motion.span>
             )}
           </AnimatePresence>
