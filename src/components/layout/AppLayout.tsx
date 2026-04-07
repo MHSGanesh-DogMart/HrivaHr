@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard,
@@ -34,36 +34,41 @@ interface NavItem {
   path: string
 }
 
-const adminNavItems: NavItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Employees', icon: Users, path: '/employees' },
-  { label: 'Attendance', icon: Clock, path: '/attendance' },
-  { label: 'Leave', icon: Calendar, path: '/leave' },
-  { label: 'Payroll', icon: DollarSign, path: '/payroll' },
-  { label: 'Performance', icon: TrendingUp, path: '/performance' },
-  { label: 'Reports', icon: FileText, path: '/reports' },
-  { label: 'Settings', icon: Settings, path: '/settings' },
-]
-
-const employeeNavItems: NavItem[] = [
-  { label: 'My Dashboard', icon: LayoutDashboard, path: '/my-dashboard' },
-  { label: 'My Attendance', icon: Clock, path: '/attendance' },
-  { label: 'My Leave', icon: Calendar, path: '/leave' },
-  { label: 'My Profile', icon: UserCircle, path: '/profile' },
-]
-
+// Nav items are generated dynamically with tenant prefix — see buildNavItems()
+function buildAdminNavItems(t: string): NavItem[] {
+  return [
+    { label: 'Dashboard',   icon: LayoutDashboard, path: `/${t}/dashboard` },
+    { label: 'Employees',   icon: Users,            path: `/${t}/employees` },
+    { label: 'Attendance',  icon: Clock,            path: `/${t}/attendance` },
+    { label: 'Leave',       icon: Calendar,         path: `/${t}/leave` },
+    { label: 'Payroll',     icon: DollarSign,       path: `/${t}/payroll` },
+    { label: 'Performance', icon: TrendingUp,       path: `/${t}/performance` },
+    { label: 'Reports',     icon: FileText,         path: `/${t}/reports` },
+    { label: 'Settings',    icon: Settings,         path: `/${t}/settings` },
+  ]
+}
+function buildEmployeeNavItems(t: string): NavItem[] {
+  return [
+    { label: 'My Dashboard', icon: LayoutDashboard, path: `/${t}/my-dashboard` },
+    { label: 'My Attendance', icon: Clock,          path: `/${t}/attendance` },
+    { label: 'My Leave',      icon: Calendar,       path: `/${t}/leave` },
+    { label: 'My Profile',    icon: UserCircle,     path: `/${t}/profile` },
+  ]
+}
 const superAdminNavItems: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/super-admin' },
-  { label: 'Tenants', icon: Layers, path: '/super-admin' },
-  { label: 'Analytics', icon: BarChart3, path: '/super-admin' },
-  { label: 'Billing', icon: CreditCard, path: '/super-admin' },
-  { label: 'Support', icon: HeadphonesIcon, path: '/super-admin' },
+  { label: 'Tenants',   icon: Layers,          path: '/super-admin' },
+  { label: 'Analytics', icon: BarChart3,       path: '/super-admin' },
+  { label: 'Billing',   icon: CreditCard,      path: '/super-admin' },
+  { label: 'Support',   icon: HeadphonesIcon,  path: '/super-admin' },
 ]
 
-const roleConfig: Record<Role, { label: string; navItems: NavItem[]; defaultPath: string; accent: string }> = {
-  admin: { label: 'Admin', navItems: adminNavItems, defaultPath: '/dashboard', accent: 'from-blue-500 to-blue-700' },
-  employee: { label: 'Employee', navItems: employeeNavItems, defaultPath: '/my-dashboard', accent: 'from-emerald-500 to-emerald-700' },
-  superadmin: { label: 'Super Admin', navItems: superAdminNavItems, defaultPath: '/super-admin', accent: 'from-amber-500 to-orange-600' },
+function buildRoleConfig(t: string) {
+  return {
+    admin:      { label: 'Admin',       navItems: buildAdminNavItems(t),    defaultPath: `/${t}/dashboard`,    accent: 'from-blue-500 to-blue-700' },
+    employee:   { label: 'Employee',    navItems: buildEmployeeNavItems(t), defaultPath: `/${t}/my-dashboard`, accent: 'from-emerald-500 to-emerald-700' },
+    superadmin: { label: 'Super Admin', navItems: superAdminNavItems,       defaultPath: '/super-admin',       accent: 'from-amber-500 to-orange-600' },
+  }
 }
 
 // Section groupings for admin nav
@@ -82,6 +87,8 @@ function Sidebar({ role, setRole, collapsed, setCollapsed }: {
 }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { tenant = '' } = useParams<{ tenant: string }>()
+  const roleConfig = buildRoleConfig(tenant)
   const { navItems, accent } = roleConfig[role]
 
   // Build grouped nav for admin, flat for others
@@ -176,7 +183,7 @@ function Sidebar({ role, setRole, collapsed, setCollapsed }: {
                   key={r}
                   onClick={() => {
                     setRole(r)
-                    navigate(roleConfig[r].defaultPath)
+                    navigate(buildRoleConfig(tenant)[r].defaultPath)
                   }}
                   className={cn(
                     'flex-1 py-1.5 rounded-md text-[10px] font-semibold transition-all duration-200',
@@ -290,10 +297,14 @@ function TopHeader() {
 export default function AppLayout() {
   const [role, setRole] = useState<Role>('admin')
   const [collapsed, setCollapsed] = useState(false)
+  const { tenant = '' } = useParams<{ tenant: string }>()
+
+  // Show super admin layout when on /super-admin (no tenant)
+  const effectiveRole: Role = !tenant ? 'superadmin' : role
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      <Sidebar role={role} setRole={setRole} collapsed={collapsed} setCollapsed={setCollapsed} />
+      <Sidebar role={effectiveRole} setRole={setRole} collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopHeader />

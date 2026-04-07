@@ -1,16 +1,18 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp } from 'firebase/app'
+import { getAuth } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyA4vyW609Kh4N6Z_v8CWoXmJuArqeN58kc",
   authDomain: "hrivahr.firebaseapp.com",
   projectId: "hrivahr",
   storageBucket: "hrivahr.firebasestorage.app",
   messagingSenderId: "1027640189714",
-  appId: "1:1027640189714:web:8188b5eda3c6d45fb409cb"
-};
+  appId: "1:1027640189714:web:8188b5eda3c6d45fb409cb",
+}
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig)
 
-export { app };
+export const auth = getAuth(app)
+export const db   = getFirestore(app)
+export default app

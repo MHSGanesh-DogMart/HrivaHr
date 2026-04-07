@@ -14,7 +14,9 @@
       "Bash(grep -rn \"onValueChange\\\\|onChange\\\\|value.*null\" 'D:\\\\Hemanth Play Store\\\\Hr Portal/node_modules/@base-ui/react/dist' --include=*.d.ts)",
       "Bash(find 'D:\\\\Hemanth Play Store\\\\Hr Portal/node_modules/@base-ui/react' -name *.d.ts -path *select*)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(echo \"Exit code: $?\")"
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(firebase --version)",
+      "Bash(npx firebase:*)"
     ]
   }
 }

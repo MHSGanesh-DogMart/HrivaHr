@@ -6,11 +6,12 @@ import {
   Check, ChevronRight, ChevronLeft, Eye, EyeOff,
   Globe, Phone, Mail, Hash, Briefcase, Users,
   Clock, CalendarDays, CreditCard, ShieldCheck,
-  Star, Zap, Crown, Gift,
+  Star, Zap, Crown, Gift, AlertCircle, ExternalLink,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { registerCompany, generateSlug, isSlugAvailable } from '@/services/registerCompany'
 
 /* ─── Super-Admin Defined Configs (in real app, fetched from API) ── */
 const SA_COMPANY_TYPES = ['Private Limited', 'Public Limited', 'LLP', 'Partnership', 'Sole Proprietorship', 'NGO / Non-Profit', 'Government / PSU', 'Startup']
@@ -192,8 +193,16 @@ function ToggleChip({ label, selected, onClick }: { label: string; selected: boo
 }
 
 /* ─── Step 1: Company Identity ──────────────────────────────────── */
-function StepCompanyIdentity({ form, update }: { form: FormData; update: (k: keyof FormData, v: unknown) => void }) {
+function StepCompanyIdentity({
+  form, update, slugStatus,
+}: {
+  form: FormData
+  update: (k: keyof FormData, v: unknown) => void
+  slugStatus: 'idle' | 'checking' | 'taken' | 'available'
+}) {
   const sizes = ['1–10', '11–50', '51–200', '201–500', '500–1000', '1000+']
+  const slug = generateSlug(form.companyName)
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -202,6 +211,40 @@ function StepCompanyIdentity({ form, update }: { form: FormData; update: (k: key
         <TextField label="Legal / Registered Name" placeholder="As per incorporation certificate"
           value={form.legalName} onChange={(v) => update('legalName', v)} icon={Briefcase} />
       </div>
+
+      {/* Live workspace URL preview */}
+      {form.companyName.length > 2 && (
+        <div className={cn(
+          'flex items-center gap-3 p-3.5 rounded-xl border transition-all duration-200',
+          slugStatus === 'available' ? 'bg-emerald-50 border-emerald-200' :
+          slugStatus === 'taken'     ? 'bg-rose-50 border-rose-200' :
+                                       'bg-slate-50 border-slate-200',
+        )}>
+          <Hash className={cn('w-4 h-4 shrink-0',
+            slugStatus === 'available' ? 'text-emerald-500' :
+            slugStatus === 'taken'     ? 'text-rose-500' : 'text-slate-400',
+          )} />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Your Workspace URL</p>
+            <p className="text-[13px] font-mono font-semibold text-slate-700 truncate">
+              hrivahr.web.app/<span className={cn(
+                slugStatus === 'available' ? 'text-emerald-600' :
+                slugStatus === 'taken'     ? 'text-rose-600' : 'text-blue-600',
+              )}>{slug}</span>
+            </p>
+          </div>
+          {slugStatus === 'checking' && (
+            <span className="w-4 h-4 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          )}
+          {slugStatus === 'available' && (
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full shrink-0">✓ Available</span>
+          )}
+          {slugStatus === 'taken' && (
+            <span className="text-[11px] font-bold text-rose-700 bg-rose-100 px-2.5 py-1 rounded-full shrink-0">✗ Taken</span>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <SelectField label="Company Type" required value={form.companyType}
           onChange={(v) => update('companyType', v)} options={SA_COMPANY_TYPES}
@@ -223,10 +266,6 @@ function StepCompanyIdentity({ form, update }: { form: FormData; update: (k: key
         <TextField label="Company Website" placeholder="https://yourcompany.com"
           value={form.website} onChange={(v) => update('website', v)} icon={Globe}
           hint="Optional — used for company profile" />
-        <TextField label="Company Subdomain" required placeholder="acme"
-          value={form.companyName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}
-          onChange={() => {}} icon={Hash}
-          hint="Your login URL: acme.hrivahr.in" />
       </div>
       <TextareaField label="Company Description" placeholder="Brief description of what your company does..."
         value={form.description} onChange={(v) => update('description', v)} />
@@ -690,6 +729,42 @@ function StepperBar({ current }: { current: number }) {
   )
 }
 
+/* ─── Step validation ────────────────────────────────────────────── */
+function validateStep(step: number, form: FormData): string[] {
+  const errors: string[] = []
+  if (step === 1) {
+    if (!form.companyName.trim())  errors.push('Company name is required.')
+    if (!form.companyType)         errors.push('Please select a company type.')
+    if (!form.industry)            errors.push('Please select an industry.')
+    if (!form.companySize)         errors.push('Please select your company size.')
+  }
+  if (step === 2) {
+    if (!form.address.trim()) errors.push('Head office address is required.')
+    if (!form.city.trim())    errors.push('City is required.')
+    if (!form.state.trim())   errors.push('State is required.')
+    if (!form.pincode.trim()) errors.push('PIN code is required.')
+    if (!form.phone.trim())   errors.push('Company phone is required.')
+    if (!form.hrEmail.trim()) errors.push('HR email is required.')
+  }
+  if (step === 3) {
+    if (!form.shifts.length)    errors.push('Select at least one shift type.')
+    if (!form.leavePolicy)      errors.push('Please select a leave policy.')
+  }
+  if (step === 4) {
+    if (!form.adminFirstName.trim()) errors.push('First name is required.')
+    if (!form.adminLastName.trim())  errors.push('Last name is required.')
+    if (!form.adminEmail.trim())     errors.push('Admin email is required.')
+    if (!form.adminPhone.trim())     errors.push('Mobile number is required.')
+    if (!form.password)              errors.push('Password is required.')
+    if (form.password.length < 8)    errors.push('Password must be at least 8 characters.')
+    if (form.password !== form.confirmPassword) errors.push('Passwords do not match.')
+  }
+  if (step === 5) {
+    if (!form.agreedToTerms) errors.push('Please agree to the Terms of Service to continue.')
+  }
+  return errors
+}
+
 /* ─── Main Register Page ─────────────────────────────────────────── */
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -697,25 +772,81 @@ export default function RegisterPage() {
   const [form, setForm] = useState<FormData>(defaultForm)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [stepErrors, setStepErrors] = useState<string[]>([])
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+  const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle')
 
   function update(key: keyof FormData, value: unknown) {
     setForm((prev) => ({ ...prev, [key]: value }))
+    setStepErrors([])
+    // Live slug preview check when company name changes
+    if (key === 'companyName' && typeof value === 'string' && value.length > 2) {
+      const slug = generateSlug(value)
+      setSlugStatus('checking')
+      isSlugAvailable(slug).then((ok) => setSlugStatus(ok ? 'available' : 'taken'))
+    }
   }
 
   function goNext() {
+    const errors = validateStep(step, form)
+    if (errors.length > 0) { setStepErrors(errors); return }
+    setStepErrors([])
     if (step < 5) { setDirection('forward'); setStep((s) => s + 1) }
   }
   function goBack() {
+    setStepErrors([])
     if (step > 1) { setDirection('back'); setStep((s) => s - 1) }
   }
 
   async function handleSubmit() {
+    const errors = validateStep(5, form)
+    if (errors.length > 0) { setStepErrors(errors); return }
+
     setSubmitting(true)
-    await new Promise((r) => setTimeout(r, 2500))
+    setSubmitError('')
+
+    const result = await registerCompany({
+      companyName:    form.companyName,
+      legalName:      form.legalName,
+      companyType:    form.companyType,
+      industry:       form.industry,
+      companySize:    form.companySize,
+      website:        form.website,
+      description:    form.description,
+      address:        form.address,
+      city:           form.city,
+      state:          form.state,
+      country:        form.country,
+      pincode:        form.pincode,
+      phone:          form.phone,
+      hrEmail:        form.hrEmail,
+      workWeek:       form.workWeek,
+      hoursPerDay:    form.hoursPerDay,
+      shifts:         form.shifts,
+      leavePolicy:    form.leavePolicy,
+      payrollCycle:   form.payrollCycle,
+      fyStart:        form.fyStart,
+      overtimeEnabled: form.overtimeEnabled,
+      adminFirstName: form.adminFirstName,
+      adminLastName:  form.adminLastName,
+      adminEmail:     form.adminEmail,
+      adminPhone:     form.adminPhone,
+      adminTitle:     form.adminTitle,
+      password:       form.password,
+      plan:           form.plan,
+      promoCode:      form.promoCode,
+    })
+
     setSubmitting(false)
+
+    if (!result.success) {
+      setSubmitError(result.error ?? 'Registration failed. Please try again.')
+      return
+    }
+
     setSubmitted(true)
-    setTimeout(() => navigate('/dashboard'), 2000)
+    setTimeout(() => navigate(`/${result.slug}/dashboard`), 2500)
   }
 
   const variants = {
@@ -790,16 +921,29 @@ export default function RegisterPage() {
                     key="success"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="flex flex-col items-center justify-center py-12 text-center"
+                    className="flex flex-col items-center justify-center py-10 text-center"
                   >
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-5">
-                      <Check className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-[22px] font-bold text-slate-900">You're all set!</h3>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                      className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-xl shadow-emerald-500/30 mb-6"
+                    >
+                      <Check className="w-10 h-10 text-white" />
+                    </motion.div>
+                    <h3 className="text-[24px] font-bold text-slate-900">You're all set! 🎉</h3>
                     <p className="text-slate-500 text-[14px] mt-2 max-w-sm">
-                      Your workspace is being configured. Redirecting to your dashboard...
+                      <span className="font-semibold text-slate-700">{form.companyName}</span> workspace is ready.
+                      Redirecting you to your dashboard...
                     </p>
-                    <div className="flex items-center gap-1.5 mt-4">
+                    {/* Workspace URL */}
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 mt-5">
+                      <ExternalLink className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span className="text-[12px] font-mono font-semibold text-emerald-700">
+                        hrivahr.web.app/{generateSlug(form.companyName)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -815,7 +959,23 @@ export default function RegisterPage() {
                     exit="exit"
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                   >
-                    {step === 1 && <StepCompanyIdentity form={form} update={update} />}
+                    {/* Validation error banner */}
+                    {stepErrors.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-xl p-3.5 mb-5"
+                      >
+                        <AlertCircle className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+                        <div>
+                          {stepErrors.map((e, i) => (
+                            <p key={i} className="text-[12.5px] text-rose-700 font-medium">{e}</p>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {step === 1 && <StepCompanyIdentity form={form} update={update} slugStatus={slugStatus} />}
                     {step === 2 && <StepLocation form={form} update={update} />}
                     {step === 3 && <StepWorkConfig form={form} update={update} />}
                     {step === 4 && <StepAdminAccount form={form} update={update} />}
@@ -827,7 +987,19 @@ export default function RegisterPage() {
 
             {/* Footer Nav */}
             {!submitted && (
-              <div className="px-6 sm:px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-3">
+              <div className="px-6 sm:px-8 pt-4 pb-5 bg-slate-50/80 border-t border-slate-100 space-y-3">
+                {/* Firebase error banner */}
+                {submitError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-xl p-3"
+                  >
+                    <AlertCircle className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+                    <p className="text-[12.5px] text-rose-700 font-medium">{submitError}</p>
+                  </motion.div>
+                )}
+              <div className="flex items-center justify-between gap-3">
                 <button
                   onClick={goBack}
                   disabled={step === 1}
@@ -881,6 +1053,7 @@ export default function RegisterPage() {
                     )}
                   </button>
                 )}
+              </div>
               </div>
             )}
           </motion.div>
