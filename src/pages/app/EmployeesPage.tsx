@@ -25,6 +25,7 @@ import {
   type FirestoreEmployee, type EmployeeStatus,
   DEPARTMENTS, DESIGNATIONS, INDIAN_STATES,
 } from '@/services/employeeService'
+import { API_ENDPOINTS } from '@/lib/apiConfig'
 import BulkImportModal from '@/components/employees/BulkImportModal'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -354,6 +355,26 @@ export default function EmployeesPage() {
         await updateEmployee(tenantSlug, editingId, payload)
       } else {
         await addEmployee(tenantSlug, payload)
+        
+        // Trigger onboarding email invitation (non-blocking)
+        try {
+          fetch(API_ENDPOINTS.INVITE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: formData.email,
+              firstName: formData.firstName,
+              tenantSlug: tenantSlug,
+              employeeId: empId
+            })
+          }).then(res => {
+            if (!res.ok) console.error('Invite email failed to send', res.statusText)
+          }).catch(err => {
+            console.error('Invite email fetch error', err)
+          })
+        } catch (mailErr) {
+          console.error('Failed to trigger invite email', mailErr)
+        }
       }
 
       setDialogOpen(false)
