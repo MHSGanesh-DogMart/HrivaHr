@@ -367,8 +367,11 @@ export default function EmployeesPage() {
               tenantSlug: tenantSlug,
               employeeId: empId
             })
-          }).then(res => {
-            if (!res.ok) console.error('Invite email failed to send', res.statusText)
+          }).then(async res => {
+            if (!res.ok) {
+              const errBody = await res.json().catch(() => ({}))
+              console.error('Invite email failed to send:', res.status, errBody.detail || res.statusText)
+            }
           }).catch(err => {
             console.error('Invite email fetch error', err)
           })

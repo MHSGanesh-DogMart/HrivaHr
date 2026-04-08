@@ -31,8 +31,11 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    rejectUnauthorized: false // Helps with some hosting providers
-  }
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 20000
 });
 
 // Verify SMTP connection on startup
@@ -58,7 +61,13 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/invite', async (req, res) => {
-  console.log('Incoming invite request:', req.body);
+  console.log('--- NEW INVITE REQUEST ---');
+  console.log('Payload:', req.body);
+  console.log('SMTP Config:', { 
+    user: process.env.EMAIL_USER ? 'SET' : 'MISSING',
+    pass: process.env.EMAIL_PASS ? 'SET' : 'MISSING'
+  });
+  
   try {
     const { email, firstName, tenantSlug, employeeId } = req.body;
 
