@@ -30,6 +30,15 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Verify SMTP connection on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP Connection Error:', error);
+  } else {
+    console.log('SMTP Server is ready to take our messages');
+  }
+});
+
 // --- DIAGNOSTIC PROTOCOL ---
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -43,6 +52,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/invite', async (req, res) => {
+  console.log('Incoming invite request:', req.body);
   try {
     const { email, firstName, tenantSlug, employeeId } = req.body;
 
