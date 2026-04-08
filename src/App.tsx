@@ -16,6 +16,7 @@ import LeavePage        from './pages/app/LeavePage'
 import PayrollPage      from './pages/app/PayrollPage'
 import PerformancePage  from './pages/app/PerformancePage'
 import EmpDashboardPage from './pages/app/EmpDashboardPage'
+import SettingsPage     from './pages/app/SettingsPage'
 
 /**
  * URL Structure
@@ -83,7 +84,7 @@ export default function App() {
               <Route path="payroll"     element={<PayrollPage />} />
               <Route path="performance" element={<PerformancePage />} />
               <Route path="reports"     element={<DashboardPage />} />
-              <Route path="settings"    element={<DashboardPage />} />
+              <Route path="settings"    element={<SettingsPage />} />
 
               {/* Shared routes (admin + employee) */}
               <Route path="attendance"   element={<AttendancePage />} />

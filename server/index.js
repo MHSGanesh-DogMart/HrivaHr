@@ -22,6 +22,18 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// --- DIAGNOSTIC PROTOCOL ---
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'online', 
+    env_loaded: {
+      EMAIL_USER: !!process.env.EMAIL_USER,
+      EMAIL_PASS: !!process.env.EMAIL_PASS,
+      FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173 (default)'
+    }
+  });
+});
+
 app.post('/api/invite', async (req, res) => {
   try {
     const { email, firstName, tenantSlug, employeeId } = req.body;
@@ -30,8 +42,9 @@ app.post('/api/invite', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Set password deep link for React Frontend
-    const setupLink = `http://localhost:5173/set-password?email=${encodeURIComponent(email)}&tenant=${encodeURIComponent(tenantSlug)}&empId=${encodeURIComponent(employeeId)}`;
+    // Set password deep link (Dynamic based on environment)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const setupLink = `${frontendUrl}/set-password?email=${encodeURIComponent(email)}&tenant=${encodeURIComponent(tenantSlug)}&empId=${encodeURIComponent(employeeId)}`;
 
     const mailOptions = {
       from: `"HrivaHR" <${process.env.EMAIL_USER}>`,
@@ -176,8 +189,12 @@ app.post('/api/invite', async (req, res) => {
 
     res.status(200).json({ success: true, message: 'Email sent successfully' });
   } catch (error) {
-    console.error('Error sending email:', error);
-    res.status(500).json({ error: 'Failed to send email' });
+    console.error('CRITICAL: Email Transport Failure:', error);
+    res.status(500).json({ 
+      error: 'Failed to send email', 
+      detail: error.message,
+      code: error.code // Helps debug Gmail blocks/auth errors
+    });
   }
 });
 

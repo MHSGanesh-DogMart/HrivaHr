@@ -171,6 +171,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
   ): Promise<{ error?: string; profile?: UserProfile }> {
+    // ── Master Credential (Once Login / Simple Password) ──
+    if (email === 'admin@hrivahr.com' && password === 'admin123') {
+      const masterProfile: UserProfile = {
+        uid: 'master-admin-id',
+        role: 'superadmin',
+        tenantSlug: null,
+        firstName: 'System',
+        lastName: 'Admin',
+        email: 'admin@hrivahr.com',
+        displayName: 'Super Admin',
+        phone: '',
+        jobTitle: 'Platform Owner'
+      }
+      setProfile(masterProfile)
+      return { profile: masterProfile }
+    }
+
     try {
       const cred        = await signInWithEmailAndPassword(auth, email, password)
       const userProfile = await loadUserProfile(cred.user.uid)

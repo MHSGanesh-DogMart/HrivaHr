@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { API_ENDPOINTS } from '@/lib/apiConfig'
 import {
   Plus, Search, SlidersHorizontal, Eye, Pencil,
   ChevronLeft, ChevronRight, LayoutGrid, List,
@@ -168,7 +169,7 @@ export default function EmployeesPage() {
       })
 
       try {
-        await fetch('http://localhost:3000/api/invite', {
+        await fetch(API_ENDPOINTS.INVITE, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

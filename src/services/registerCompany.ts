@@ -49,6 +49,8 @@ export interface RegisterPayload {
   pincode: string
   phone: string
   hrEmail: string
+  latitude?: number
+  longitude?: number
 
   // Step 3 — Work Configuration
   workWeek: string
@@ -157,6 +159,8 @@ export async function registerCompany(payload: RegisterPayload): Promise<Registe
       pincode:  payload.pincode,
       phone:    payload.phone,
       hrEmail:  payload.hrEmail,
+      latitude: payload.latitude || null,
+      longitude: payload.longitude || null,
 
       // Work configuration
       workWeek:        payload.workWeek,
@@ -181,6 +185,41 @@ export async function registerCompany(payload: RegisterPayload): Promise<Registe
     })
 
     console.log('[register] Tenant doc written ✅')
+
+    /* ── Step 3b: Pre-fill company settings from registration data ── */
+    const shiftPresets: Record<string, { name: string; startTime: string; endTime: string; workDays: string[] }> = {
+      general:   { name: 'General Shift',   startTime: '09:00', endTime: '18:00', workDays: ['Mon','Tue','Wed','Thu','Fri'] },
+      morning:   { name: 'Morning Shift',   startTime: '06:00', endTime: '14:00', workDays: ['Mon','Tue','Wed','Thu','Fri','Sat'] },
+      afternoon: { name: 'Afternoon Shift', startTime: '14:00', endTime: '22:00', workDays: ['Mon','Tue','Wed','Thu','Fri','Sat'] },
+      night:     { name: 'Night Shift',     startTime: '22:00', endTime: '06:00', workDays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] },
+      flexible:  { name: 'Flexible / WFH', startTime: '09:00', endTime: '18:00', workDays: ['Mon','Tue','Wed','Thu','Fri'] },
+    }
+    const offDays = payload.workWeek.includes('Monday – Saturday') ? ['Sun']
+      : payload.workWeek.includes('Sunday – Thursday') ? ['Fri', 'Sat']
+      : payload.workWeek.includes('Flexible') ? []
+      : ['Sat', 'Sun']
+
+    await setDoc(doc(db, 'tenants', slug, 'settings', 'company'), {
+      companyName:    payload.companyName,
+      companyEmail:   payload.hrEmail,
+      companyPhone:   payload.phone,
+      companyAddress: [payload.address, payload.city, payload.state, payload.country].filter(Boolean).join(', '),
+      timezone:       'Asia/Kolkata',
+      shifts: payload.shifts.map((id) => ({
+        id,
+        gracePeriodMins: 15,
+        ...(shiftPresets[id] ?? { name: id, startTime: '09:00', endTime: '18:00', workDays: ['Mon','Tue','Wed','Thu','Fri'] }),
+      })),
+      clockInMode:      'none',
+      allowedIPs:       [],
+      locationRadius:   100,
+      officeLatitude:   payload.latitude || null,
+      officeLongitude:  payload.longitude || null,
+      maxLeavePerMonth: 2,
+      weeklyOffDays:    offDays,
+      updatedAt:        serverTimestamp(),
+    })
+    console.log('[register] Settings doc pre-filled ✅')
 
     /* ── Step 4: Write user profile to top-level /users/{uid} ── */
     // Top-level so we can look up role+tenantSlug immediately after login
