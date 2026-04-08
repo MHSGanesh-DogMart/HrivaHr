@@ -16,22 +16,22 @@ import { cn } from '@/lib/utils'
 type LoginMethod = 'email' | 'phone'
 
 /* ─── Industry → branding map ──────────────────────────────────── */
-function getTheme(industry: string): { gradient: string; color: string; logo: string } {
-  const map: Record<string, { gradient: string; color: string; logo: string }> = {
-    'Technology & Software':    { gradient: 'from-indigo-600 to-violet-700', color: '#6366f1', logo: '💻' },
-    'Healthcare & Pharma':      { gradient: 'from-emerald-600 to-teal-700',  color: '#059669', logo: '🏥' },
-    'Manufacturing':            { gradient: 'from-orange-600 to-amber-700',  color: '#d97706', logo: '⚙️' },
-    'Finance & Banking':        { gradient: 'from-blue-600 to-indigo-700',   color: '#2563eb', logo: '🏦' },
-    'Retail & E-commerce':      { gradient: 'from-sky-500 to-blue-700',      color: '#0ea5e9', logo: '🛍️' },
-    'Education':                { gradient: 'from-purple-600 to-violet-700', color: '#9333ea', logo: '📚' },
-    'Media & Entertainment':    { gradient: 'from-rose-500 to-pink-700',     color: '#f43f5e', logo: '🎬' },
-    'Logistics & Supply Chain': { gradient: 'from-yellow-600 to-orange-600', color: '#d97706', logo: '🚛' },
-    'Real Estate':              { gradient: 'from-slate-600 to-slate-800',   color: '#475569', logo: '🏢' },
-    'Construction':             { gradient: 'from-amber-600 to-yellow-700',  color: '#d97706', logo: '🏗️' },
-    'Hospitality':              { gradient: 'from-pink-600 to-rose-700',     color: '#db2777', logo: '🏨' },
-    'Consulting':               { gradient: 'from-cyan-600 to-blue-700',     color: '#0891b2', logo: '💼' },
+function getTheme(industry: string): { color: string; logo: string } {
+  const map: Record<string, { color: string; logo: string }> = {
+    'Technology & Software':    { color: '#0B1C2C', logo: '💻' },
+    'Healthcare & Pharma':      { color: '#0B1C2C', logo: '🏥' },
+    'Manufacturing':            { color: '#0B1C2C', logo: '⚙️' },
+    'Finance & Banking':        { color: '#0B1C2C', logo: '🏦' },
+    'Retail & E-commerce':      { color: '#0B1C2C', logo: '🛍️' },
+    'Education':                { color: '#0B1C2C', logo: '📚' },
+    'Media & Entertainment':    { color: '#0B1C2C', logo: '🎬' },
+    'Logistics & Supply Chain': { color: '#0B1C2C', logo: '🚛' },
+    'Real Estate':              { color: '#0B1C2C', logo: '🏢' },
+    'Construction':             { color: '#0B1C2C', logo: '🏗️' },
+    'Hospitality':              { color: '#0B1C2C', logo: '🏨' },
+    'Consulting':               { color: '#0B1C2C', logo: '💼' },
   }
-  return map[industry] ?? { gradient: 'from-blue-600 to-indigo-600', color: '#2563eb', logo: '🏢' }
+  return map[industry] ?? { color: '#0B1C2C', logo: '🏢' }
 }
 
 interface TenantData {
@@ -184,15 +184,15 @@ export default function TenantLoginPage() {
           <div className="flex flex-col gap-3">
             <button
               onClick={() => navigate('/')}
-              className="w-full h-11 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[14px] font-semibold shadow-lg shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700 transition-all"
+              className="w-full h-11 rounded-md bg-slate-900 text-white text-[13px] font-bold uppercase tracking-wider shadow-sm hover:bg-black transition-all"
             >
-              Go to HRPortal Home
+              Return Home
             </button>
             <button
               onClick={() => navigate('/register')}
-              className="w-full h-11 rounded-xl border border-slate-200 text-slate-700 text-[14px] font-semibold hover:bg-slate-50 transition-colors"
+              className="w-full h-11 rounded-md border border-slate-200 text-slate-700 text-[13px] font-bold uppercase tracking-wider hover:bg-slate-50 transition-colors"
             >
-              Register Your Company
+              Onboard Workspace
             </button>
           </div>
         </motion.div>
@@ -304,10 +304,7 @@ export default function TenantLoginPage() {
         initial={{ opacity: 0, x: -30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5 }}
-        className={cn(
-          'hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden',
-          `bg-gradient-to-br ${theme.gradient}`,
-        )}
+        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden bg-slate-900"
       >
         <div
           className="absolute inset-0 opacity-10"
@@ -334,7 +331,7 @@ export default function TenantLoginPage() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.4 }}
-            className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-6 text-5xl shadow-2xl"
+            className="w-24 h-24 rounded-md bg-white/10 backdrop-blur-md flex items-center justify-center mx-auto mb-6 text-5xl shadow-2xl border border-white/10"
           >
             {theme.logo}
           </motion.div>
@@ -400,29 +397,26 @@ export default function TenantLoginPage() {
         <div className="w-full max-w-[400px]">
           {/* Mobile: company identity */}
           <div className="flex lg:hidden items-center gap-3 mb-6">
-            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-gradient-to-br', theme.gradient)}>
+            <div className="w-10 h-10 rounded-md flex items-center justify-center text-xl bg-slate-900 border border-slate-800">
               {theme.logo}
             </div>
             <div>
-              <p className="font-bold text-slate-800 text-[15px]">{company!.companyName}</p>
-              <p className="text-[11px] text-slate-500">{company!.industry}</p>
+              <p className="font-bold text-slate-900 text-[15px] uppercase tracking-tight">{company!.companyName}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">{company!.industry}</p>
             </div>
           </div>
 
           {/* Card */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xl shadow-slate-200/60 p-8">
+          <div className="bg-white rounded-md border border-slate-200 shadow-sm p-8">
             {/* Heading */}
             <div className="mb-6">
-              <div className={cn(
-                'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg mb-4 text-white text-[11px] font-semibold bg-gradient-to-r',
-                theme.gradient,
-              )}>
-                <span className="text-base">{theme.logo}</span>
-                {company!.companyName} Workspace
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md mb-4 text-white text-[10px] font-bold uppercase tracking-wider bg-slate-900">
+                <span className="text-base leading-none">{theme.logo}</span>
+                {company!.companyName} Secure Access
               </div>
-              <h2 className="text-[22px] font-bold text-slate-900 tracking-tight">Welcome back</h2>
-              <p className="text-slate-500 text-[13px] mt-1">
-                Sign in to your <span className="font-semibold text-slate-700">{company!.companyName}</span> HR workspace.
+              <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">Identity Verification</h2>
+              <p className="text-slate-500 text-[12px] mt-1 font-medium">
+                Authenticated session for <span className="font-bold text-slate-900">{company!.companyName}</span> workspace.
               </p>
             </div>
 
@@ -523,13 +517,7 @@ export default function TenantLoginPage() {
                     type="submit"
                     disabled={loading}
                     whileTap={{ scale: 0.985 }}
-                    className={cn(
-                      'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold mt-1',
-                      'flex items-center justify-center gap-2 transition-all duration-200',
-                      'disabled:opacity-70 disabled:cursor-not-allowed',
-                      `bg-gradient-to-r ${theme.gradient}`,
-                      'shadow-lg hover:shadow-xl',
-                    )}
+                    className="w-full h-11 rounded-md text-white text-[11px] font-bold uppercase tracking-widest mt-1 flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed bg-slate-900 hover:bg-black shadow-sm"
                   >
                     <AnimatePresence mode="wait">
                       {loading ? (
@@ -604,12 +592,7 @@ export default function TenantLoginPage() {
                           disabled={loading || phone.length < 10}
                           onClick={handleSendOtp}
                           whileTap={{ scale: 0.985 }}
-                          className={cn(
-                            'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold',
-                            'flex items-center justify-center gap-2 transition-all duration-200',
-                            `bg-gradient-to-r ${theme.gradient}`,
-                            'shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed',
-                          )}
+                          className="w-full h-11 rounded-md bg-slate-900 border border-slate-800 text-white shadow-sm hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed text-[11px] font-bold uppercase tracking-widest mt-1 flex items-center justify-center gap-2 transition-all duration-200"
                         >
                           {loading ? (
                             <>
@@ -689,12 +672,7 @@ export default function TenantLoginPage() {
                           type="submit"
                           disabled={loading || otp.length < 6}
                           whileTap={{ scale: 0.985 }}
-                          className={cn(
-                            'w-full h-11 rounded-xl text-white text-[13.5px] font-semibold',
-                            'flex items-center justify-center gap-2 transition-all duration-200',
-                            `bg-gradient-to-r ${theme.gradient}`,
-                            'shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed',
-                          )}
+                          className="w-full h-11 rounded-md bg-slate-900 border border-slate-800 text-white shadow-sm hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed text-[11px] font-bold uppercase tracking-widest mt-1 flex items-center justify-center gap-2 transition-all duration-200"
                         >
                           <AnimatePresence mode="wait">
                             {loading ? (

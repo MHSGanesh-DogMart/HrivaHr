@@ -5,18 +5,25 @@ import { RequireTenant, RequireRole } from '@/components/ProtectedRoute'
 
 import LoginPage       from './pages/LoginPage'
 import RegisterPage    from './pages/RegisterPage'
-import SetPasswordPage from './pages/SetPasswordPage'
+import SetPasswordPage from '@/pages/SetPasswordPage'
 import AppLayout       from './components/layout/AppLayout'
 import SuperAdminPage  from './pages/app/SuperAdminPage'
 
-import DashboardPage    from './pages/app/DashboardPage'
-import EmployeesPage    from './pages/app/EmployeesPage'
-import AttendancePage   from './pages/app/AttendancePage'
-import LeavePage        from './pages/app/LeavePage'
-import PayrollPage      from './pages/app/PayrollPage'
-import PerformancePage  from './pages/app/PerformancePage'
-import EmpDashboardPage from './pages/app/EmpDashboardPage'
-import SettingsPage     from './pages/app/SettingsPage'
+import DashboardPage     from './pages/app/DashboardPage'
+import EmployeesPage     from './pages/app/EmployeesPage'
+import AttendancePage    from './pages/app/AttendancePage'
+import LeavePage         from './pages/app/LeavePage'
+import PayrollPage       from './pages/app/PayrollPage'
+import PerformancePage   from './pages/app/PerformancePage'
+import RecruitmentPage   from './pages/app/RecruitmentPage'
+import OnboardingPage    from './pages/app/OnboardingPage'
+import ReportsPage       from './pages/app/ReportsPage'
+import NotificationsPage from './pages/app/NotificationsPage'
+import OrgChartPage      from './pages/app/OrgChartPage'
+import AuditLogsPage     from './pages/app/AuditLogsPage'
+import EmpDashboardPage  from './pages/app/EmpDashboardPage'
+import ProfilePage       from './pages/app/ProfilePage'
+import SettingsPage      from './pages/app/SettingsPage'
 
 /**
  * URL Structure
@@ -36,7 +43,7 @@ import SettingsPage     from './pages/app/SettingsPage'
  *  /:tenant/payroll         → Payroll                  [admin]
  *  /:tenant/performance     → Performance reviews      [admin]
  *  /:tenant/my-dashboard    → Employee self-service    [employee]
- *  /:tenant/profile         → Employee profile         [employee]
+ *  /:tenant/profile/:uid    → Employee profile         [employee]
  *  /:tenant/reports         → Reports                  [admin]
  *  /:tenant/settings        → Settings                 [admin]
  *
@@ -79,20 +86,25 @@ export default function App() {
               <Route index element={<TenantHome />} />
 
               {/* Admin + SuperAdmin routes */}
-              <Route path="dashboard"   element={<DashboardPage />} />
-              <Route path="employees"   element={<EmployeesPage />} />
-              <Route path="payroll"     element={<PayrollPage />} />
-              <Route path="performance" element={<PerformancePage />} />
-              <Route path="reports"     element={<DashboardPage />} />
-              <Route path="settings"    element={<SettingsPage />} />
+              <Route path="dashboard"     element={<DashboardPage />} />
+              <Route path="employees"     element={<EmployeesPage />} />
+              <Route path="payroll"       element={<PayrollPage />} />
+              <Route path="performance"   element={<PerformancePage />} />
+              <Route path="recruitment"   element={<RecruitmentPage />} />
+              <Route path="onboarding"    element={<OnboardingPage />} />
+              <Route path="reports"       element={<ReportsPage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="org-chart"     element={<OrgChartPage />} />
+              <Route path="audit-logs"    element={<AuditLogsPage />} />
+              <Route path="settings"      element={<SettingsPage />} />
 
               {/* Shared routes (admin + employee) */}
               <Route path="attendance"   element={<AttendancePage />} />
               <Route path="leave"        element={<LeavePage />} />
 
               {/* Employee routes */}
-              <Route path="my-dashboard" element={<EmpDashboardPage />} />
-              <Route path="profile"      element={<EmpDashboardPage />} />
+              <Route path="my-dashboard"  element={<EmpDashboardPage />} />
+              <Route path="profile"       element={<ProfilePage />} />
             </Route>
           </Route>
 

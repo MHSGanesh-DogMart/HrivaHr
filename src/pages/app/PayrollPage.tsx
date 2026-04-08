@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Play, CheckCircle2, Clock, AlertCircle, ChevronRight, LayoutGrid, List, TrendingUp, Loader2 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
@@ -31,22 +32,20 @@ function getMonthOptions(count = 6) {
   return months
 }
 
-const avatarGradients = [
-  'from-violet-500 to-purple-600',
-  'from-blue-500 to-indigo-600',
-  'from-emerald-500 to-teal-600',
-  'from-amber-400 to-orange-500',
-  'from-rose-500 to-pink-600',
+const avatarColors = [
+  'bg-slate-100 text-slate-600',
+  'bg-blue-50 text-blue-600',
+  'bg-slate-200 text-slate-700',
 ]
 
 function StatusBadge({ status }: { status: PayrollStatus }) {
   const map: Record<PayrollStatus, string> = {
-    Processed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    Pending:   'bg-amber-50 text-amber-700 border border-amber-200',
-    'On Hold': 'bg-rose-50 text-rose-700 border border-rose-200',
+    Processed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    Pending:   'bg-amber-50 text-amber-700 border-amber-100',
+    'On Hold': 'bg-red-50 text-red-700 border-red-100',
   }
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[status]}`}>
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", map[status])}>
       {status}
     </span>
   )
@@ -127,28 +126,24 @@ export default function PayrollPage() {
       label:    'Total Payroll',
       value:    records.length > 0 ? formatCurrency(totalNetPay) : '—',
       icon:     TrendingUp,
-      gradient: 'from-violet-500 to-purple-700',
       sub:      selectedMonth,
     },
     {
       label:    'Processed',
       value:    `${processedCount} employees`,
       icon:     CheckCircle2,
-      gradient: 'from-emerald-500 to-teal-600',
       sub:      processedCount > 0 ? formatCurrency(processedTotal) : '—',
     },
     {
       label:    'Pending',
       value:    `${pendingCount} employees`,
       icon:     Clock,
-      gradient: 'from-amber-400 to-orange-500',
       sub:      pendingCount > 0 ? 'Awaiting run' : 'None pending',
     },
     {
       label:    'On Hold',
       value:    `${onHoldCount} employees`,
       icon:     AlertCircle,
-      gradient: 'from-rose-500 to-pink-600',
       sub:      onHoldCount > 0 ? 'Review required' : 'None on hold',
     },
   ]
@@ -162,58 +157,60 @@ export default function PayrollPage() {
           <p className="text-[11px] text-slate-400 mb-1 flex items-center gap-1">
             <span>Home</span><ChevronRight className="w-3 h-3" /><span className="text-slate-600">Payroll</span>
           </p>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Payroll Management</h1>
-          <p className="text-slate-500 text-[13px] mt-0.5">Manage salaries and payroll processing</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Financial Operations</h1>
+          <p className="text-slate-500 text-[13px] mt-0.5">Payroll cycle data for the fiscal period</p>
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedMonth} onValueChange={(v) => setSelectedMonth(v ?? currentMonthLabel())}>
-            <SelectTrigger className="w-44 h-9 text-[13px] border-slate-200 rounded-xl bg-white">
+            <SelectTrigger className="w-44 h-9 text-[12px] font-bold border-slate-200 rounded-md bg-white">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {months.map((m) => <SelectItem key={m} value={m} className="text-[13px]">{m}</SelectItem>)}
+              {months.map((m) => <SelectItem key={m} value={m} className="text-[12px]">{m}</SelectItem>)}
             </SelectContent>
           </Select>
-
+        </div>
+        <div className="flex items-center gap-3">
           <Dialog open={runDialogOpen} onOpenChange={setRunDialogOpen}>
             <Button
               size="sm"
-              className="gap-2 text-[13px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/30"
+              className="gap-2 text-[12px] font-bold uppercase tracking-wider bg-slate-900 hover:bg-black text-white rounded-md shadow-sm h-9 px-5"
               onClick={() => setRunDialogOpen(true)}
             >
-              <Play className="w-3.5 h-3.5" /> Run Payroll
+              <Play className="w-3.5 h-3.5" /> Execute Payroll
             </Button>
-            <DialogContent className="max-w-sm">
-              <DialogHeader>
-                <DialogTitle className="text-[17px] font-semibold">Run Payroll — {selectedMonth}</DialogTitle>
+            <DialogContent className="max-w-sm rounded-md border-slate-200">
+              <DialogHeader className="border-b border-slate-100 pb-3 mb-3">
+                <DialogTitle className="text-[15px] font-bold text-slate-900 uppercase tracking-wider">Payroll Execution</DialogTitle>
               </DialogHeader>
               <div className="py-2 space-y-4">
-                <p className="text-[13px] text-slate-600">
+                <p className="text-[12px] text-slate-600 leading-relaxed font-medium">
                   {records.length === 0
-                    ? 'No payroll records exist for this month. This will generate and process payroll for all active employees.'
-                    : `Process payroll for ${records.length} employees. Pending entries will be marked as Processed.`
+                    ? `Initiating payroll records for ${selectedMonth}. This will perform calculations for all active personnel.`
+                    : `Re-executing payroll for ${records.length} records. Pending disbursements will be finalized.`
                   }
                 </p>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                  <p className="text-[12px] text-amber-800">
-                    Please ensure all attendance and leave data is finalized before running payroll.
+                <div className="bg-amber-50 border border-amber-100 rounded-md p-3">
+                  <p className="text-[11px] text-amber-800 font-bold uppercase tracking-tight mb-1">Authorization Required</p>
+                  <p className="text-[11px] text-amber-700 leading-snug">
+                    Confirm that all attendance adjustments and leave deductions are audited.
                   </p>
                 </div>
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" size="sm" onClick={() => setRunDialogOpen(false)} className="text-[13px]" disabled={running}>
-                    Cancel
+                <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
+                  <Button variant="outline" size="sm" onClick={() => setRunDialogOpen(false)} className="text-[11px] font-bold uppercase tracking-wider rounded-md border-slate-200" disabled={running}>
+                    Discard
                   </Button>
                   <Button
                     size="sm"
-                    className="text-[13px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/30 gap-2"
+                    className="text-[11px] font-bold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white rounded-md min-w-[120px]"
                     onClick={handleRunPayroll}
                     disabled={running || done}
                   >
                     {running
-                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing…</>
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> Processing</>
                       : done
-                        ? <><CheckCircle2 className="w-3.5 h-3.5" /> Done!</>
-                        : 'Confirm & Run'
+                        ? <><CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Confirmed</>
+                        : 'Commit Run'
                     }
                   </Button>
                 </div>
@@ -226,36 +223,32 @@ export default function PayrollPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {summaryCards.map((card, i) => (
-          <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }}>
-            <div className={`bg-gradient-to-br ${card.gradient} rounded-2xl p-5 text-white relative overflow-hidden`}>
-              <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-              <div className="relative">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="bg-white/20 rounded-xl p-2 backdrop-blur-sm">
-                    <card.icon className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="text-[11px] bg-white/20 text-white/90 px-2 py-0.5 rounded-full font-medium">{card.sub}</span>
-                </div>
-                <p className="text-xl font-bold tracking-tight">{loading ? '—' : card.value}</p>
-                <p className="text-white/75 text-[12px] mt-0.5 font-medium">{card.label}</p>
+          <motion.div key={card.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }}
+            className="bg-white rounded-md border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-start justify-between mb-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-md p-2">
+                <card.icon className="w-4 h-4 text-slate-600" />
               </div>
+              <span className="text-[10px] font-bold uppercase tracking-tight text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{card.sub}</span>
             </div>
+            <p className="text-xl font-bold tracking-tight text-slate-900">{loading ? '—' : card.value}</p>
+            <p className="text-slate-500 text-[12px] mt-0.5 font-medium uppercase tracking-tight">{card.label}</p>
           </motion.div>
         ))}
       </div>
 
       {/* Payroll Section */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-1 h-5 bg-gradient-to-b from-emerald-500 to-teal-600 rounded-full" />
-            <h2 className="text-[15px] font-semibold text-slate-800">Employee Salaries — {selectedMonth}</h2>
+            <div className="w-1 h-4 bg-blue-600 rounded-full" />
+            <h2 className="text-[14px] font-bold text-slate-900 uppercase tracking-wider">Payroll Ledger • {selectedMonth}</h2>
           </div>
-          <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
-            <button onClick={() => setView('grid')} className={`p-2 rounded-lg transition-all duration-150 ${view === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-md p-1 gap-1">
+            <button onClick={() => setView('grid')} className={cn("p-1.5 rounded transition-all", view === 'grid' ? "bg-white shadow-sm text-blue-600 border border-slate-100" : "text-slate-400 hover:text-slate-600")}>
               <LayoutGrid className="w-4 h-4" />
             </button>
-            <button onClick={() => setView('list')} className={`p-2 rounded-lg transition-all duration-150 ${view === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+            <button onClick={() => setView('list')} className={cn("p-1.5 rounded transition-all", view === 'list' ? "bg-white shadow-sm text-blue-600 border border-slate-100" : "text-slate-400 hover:text-slate-600")}>
               <List className="w-4 h-4" />
             </button>
           </div>
@@ -263,24 +256,24 @@ export default function PayrollPage() {
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-            <p className="text-[13px] text-slate-500">Loading payroll data…</p>
+            <Loader2 className="w-8 h-8 text-slate-900 animate-spin" />
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Awaiting Ledger Sync</p>
           </div>
         ) : records.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Play className="w-8 h-8 text-white" />
+          <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white rounded-md border border-slate-200 shadow-sm">
+            <div className="w-16 h-16 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-center">
+              <Play className="w-8 h-8 text-slate-400" />
             </div>
             <div className="text-center">
-              <p className="text-[15px] font-semibold text-slate-800">No payroll for {selectedMonth}</p>
-              <p className="text-[13px] text-slate-500 mt-1">Click "Run Payroll" to generate salaries for all active employees.</p>
+              <p className="text-[15px] font-bold text-slate-900 uppercase tracking-tight">Ledger Empty for {selectedMonth}</p>
+              <p className="text-[13px] text-slate-500 mt-1">Initialize the financial cycle to generate employee disbursements.</p>
             </div>
             <Button
               size="sm"
-              className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30"
+              className="bg-slate-900 text-white rounded-md h-9 px-6 font-bold uppercase tracking-wider text-[11px]"
               onClick={() => setRunDialogOpen(true)}
             >
-              <Play className="w-3.5 h-3.5" /> Run Payroll
+              Initialize cycle
             </Button>
           </div>
         ) : (
@@ -301,41 +294,41 @@ export default function PayrollPage() {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.04 * i }}
-                      className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden"
+                      className="bg-white rounded-md border border-slate-200 shadow-sm hover:border-blue-300 transition-all overflow-hidden"
                     >
-                      <div className={`h-1.5 w-full ${rec.status === 'Processed' ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : rec.status === 'Pending' ? 'bg-gradient-to-r from-amber-400 to-orange-400' : 'bg-gradient-to-r from-rose-400 to-pink-500'}`} />
+                      <div className={`h-1 w-full ${rec.status === 'Processed' ? 'bg-emerald-500' : rec.status === 'Pending' ? 'bg-amber-500' : 'bg-red-500'}`} />
                       <div className="p-4">
                         <div className="flex items-center gap-3 mb-4">
-                          <Avatar className="w-10 h-10 shrink-0">
-                            <AvatarFallback className={`bg-gradient-to-br ${avatarGradients[i % avatarGradients.length]} text-white text-[11px] font-semibold`}>
+                          <Avatar className="w-10 h-10 shrink-0 rounded-md border border-slate-100">
+                            <AvatarFallback className={cn("text-[11px] font-bold rounded-md", avatarColors[i % avatarColors.length])}>
                               {rec.employeeName.split(' ').map((n) => n[0]).join('')}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-slate-800 truncate">{rec.employeeName}</p>
-                            <p className="text-[11px] text-slate-500 truncate">{rec.designation}</p>
+                            <p className="text-[13px] font-bold text-slate-900 truncate leading-none mb-1">{rec.employeeName}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate leading-none">{rec.designation}</p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mb-3">
-                          <div className="bg-slate-50 rounded-xl p-2.5">
-                            <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">Basic</p>
-                            <p className="text-[12px] font-semibold text-slate-700 mt-0.5 font-mono">{formatCurrency(rec.basic)}</p>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                          <div className="bg-slate-50 border border-slate-100 rounded p-2">
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Gross</p>
+                            <p className="text-[12px] font-bold text-slate-800 mt-0.5">{formatCurrency(rec.basic + rec.hra)}</p>
                           </div>
-                          <div className="bg-slate-50 rounded-xl p-2.5">
-                            <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">HRA</p>
-                            <p className="text-[12px] font-semibold text-slate-700 mt-0.5 font-mono">{formatCurrency(rec.hra)}</p>
+                          <div className="bg-slate-50 border border-slate-100 rounded p-2">
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">HRA</p>
+                            <p className="text-[12px] font-bold text-slate-800 mt-0.5">{formatCurrency(rec.hra)}</p>
                           </div>
-                          <div className="bg-rose-50 rounded-xl p-2.5">
-                            <p className="text-[9px] text-rose-400 font-medium uppercase tracking-wide">Deductions</p>
-                            <p className="text-[12px] font-semibold text-rose-600 mt-0.5 font-mono">-{formatCurrency(rec.deductions)}</p>
+                          <div className="bg-red-50/50 border border-red-100/50 rounded p-2">
+                            <p className="text-[9px] text-red-500 font-bold uppercase tracking-wider">Deduct</p>
+                            <p className="text-[12px] font-bold text-red-600 mt-0.5">-{formatCurrency(rec.deductions)}</p>
                           </div>
-                          <div className="bg-emerald-50 rounded-xl p-2.5">
-                            <p className="text-[9px] text-emerald-500 font-medium uppercase tracking-wide">Net Pay</p>
-                            <p className="text-[13px] font-bold text-emerald-700 mt-0.5 font-mono">{formatCurrency(rec.netPay)}</p>
+                          <div className="bg-emerald-50/50 border border-emerald-100/50 rounded p-2">
+                            <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider">Net Pay</p>
+                            <p className="text-[13px] font-bold text-emerald-700 mt-0.5">{formatCurrency(rec.netPay)}</p>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                          <span className="text-[11px] text-slate-500 truncate">{rec.department}</span>
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">{rec.department}</span>
                           <StatusBadge status={rec.status} />
                         </div>
                       </div>
@@ -350,60 +343,60 @@ export default function PayrollPage() {
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden">
                     <Table>
                       <TableHeader>
-                        <TableRow className="hover:bg-transparent border-b border-slate-100 bg-slate-50/80">
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide pl-6">Employee</TableHead>
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Department</TableHead>
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide text-right">CTC</TableHead>
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide text-right">Basic</TableHead>
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide text-right">HRA</TableHead>
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide text-right">Deductions</TableHead>
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide text-right">Net Pay</TableHead>
-                          <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Status</TableHead>
+                        <TableRow className="hover:bg-transparent border-b border-slate-200 bg-slate-50">
+                          <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider pl-6">Professional</TableHead>
+                          <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Unit</TableHead>
+                          <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider text-right">Fixed CTC</TableHead>
+                          <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider text-right">Adjustments</TableHead>
+                          <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider text-right">Net Payable</TableHead>
+                          <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Status</TableHead>
+                          <TableHead className="text-[10px] text-slate-500 font-bold uppercase tracking-wider text-right pr-6">Management</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {records.map((rec, i) => (
                           <motion.tr
                             key={rec.id}
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.03 * i }}
-                            className="border-slate-50 hover:bg-slate-50/60 transition-colors"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.02 * i }}
+                            className="border-slate-100 hover:bg-slate-50/50 transition-colors"
                           >
-                            <TableCell className="pl-6 py-3">
-                              <div className="flex items-center gap-2.5">
-                                <Avatar className="w-7 h-7 shrink-0">
-                                  <AvatarFallback className={`bg-gradient-to-br ${avatarGradients[i % avatarGradients.length]} text-white text-[10px] font-semibold`}>
+                            <TableCell className="pl-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8 shrink-0 rounded-md border border-slate-100">
+                                  <AvatarFallback className={cn("text-[10px] font-bold rounded-md", avatarColors[i % avatarColors.length])}>
                                     {rec.employeeName.split(' ').map((n) => n[0]).join('')}
                                   </AvatarFallback>
                                 </Avatar>
-                                <div className="min-w-0">
-                                  <p className="text-[12px] font-semibold text-slate-800 truncate">{rec.employeeName}</p>
-                                  <p className="text-[10px] text-slate-400 truncate">{rec.designation}</p>
+                                <div>
+                                  <p className="text-[12px] font-bold text-slate-900">{rec.employeeName}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{rec.designation}</p>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="text-[12px] text-slate-600">{rec.department}</TableCell>
-                            <TableCell className="text-[12px] text-slate-700 font-medium text-right font-mono">{formatCurrency(rec.ctc)}</TableCell>
-                            <TableCell className="text-[12px] text-slate-600 text-right font-mono">{formatCurrency(rec.basic)}</TableCell>
-                            <TableCell className="text-[12px] text-slate-600 text-right font-mono">{formatCurrency(rec.hra)}</TableCell>
-                            <TableCell className="text-[12px] text-rose-500 text-right font-mono">-{formatCurrency(rec.deductions)}</TableCell>
-                            <TableCell className="text-[13px] font-bold text-slate-900 text-right font-mono">{formatCurrency(rec.netPay)}</TableCell>
+                            <TableCell className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">{rec.department}</TableCell>
+                            <TableCell className="text-[12px] font-bold text-slate-900 text-right">{formatCurrency(rec.ctc)}</TableCell>
+                            <TableCell className="text-[12px] font-bold text-red-600 text-right">-{formatCurrency(rec.deductions)}</TableCell>
+                            <TableCell className="text-[13px] font-bold text-emerald-700 text-right">{formatCurrency(rec.netPay)}</TableCell>
                             <TableCell><StatusBadge status={rec.status} /></TableCell>
+                            <TableCell className="text-right pr-6">
+                               <Button variant="outline" size="sm" className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider rounded-md border-slate-200">Slip</Button>
+                            </TableCell>
                           </motion.tr>
                         ))}
                       </TableBody>
                     </Table>
 
                     {/* Footer total */}
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-                      <p className="text-[12px] font-medium text-slate-600">{records.length} employees</p>
+                    <div className="flex items-center justify-between px-6 py-5 border-t border-slate-200 bg-slate-50">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{records.length} ACTIVE RECORDS</p>
                       <div className="flex items-center gap-6">
-                        <span className="text-[12px] text-slate-500">Total Net Payable:</span>
-                        <span className="text-[16px] font-bold text-slate-900 font-mono">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Aggregate Disbursement:</span>
+                        <span className="text-[18px] font-bold text-slate-900">
                           {formatCurrency(totalNetPay)}
                         </span>
                       </div>
@@ -415,11 +408,11 @@ export default function PayrollPage() {
 
             {/* Grid view footer total */}
             {view === 'grid' && (
-              <div className="flex items-center justify-between mt-4 px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <p className="text-[12px] font-medium text-slate-600">{records.length} employees</p>
-                <div className="flex items-center gap-4">
-                  <span className="text-[12px] text-slate-500">Total Net Payable:</span>
-                  <span className="text-[16px] font-bold text-slate-900 font-mono">
+              <div className="flex items-center justify-between mt-4 px-6 py-4 bg-white rounded-md border border-slate-200 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{records.length} ACTIVE RECORDS</p>
+                <div className="flex items-center gap-6">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Aggregate Disbursement:</span>
+                  <span className="text-[18px] font-bold text-slate-900 leading-none">
                     {formatCurrency(totalNetPay)}
                   </span>
                 </div>

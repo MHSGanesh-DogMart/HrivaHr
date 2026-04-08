@@ -20,6 +20,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
+  sendPasswordResetEmail,
   GoogleAuthProvider,
   RecaptchaVerifier,
   signOut,
@@ -60,6 +61,8 @@ interface AuthContextValue {
   sendOtp: (phone: string, elementId: string) => Promise<{ error?: string }>
   /** Step 2 of Phone OTP — verifies the 6-digit OTP */
   verifyOtp: (otp: string) => Promise<{ error?: string; profile?: UserProfile }>
+  /** Send password reset email */
+  resetPassword: (email: string) => Promise<{ error?: string; success?: boolean }>
   logout: () => Promise<void>
 }
 
@@ -346,6 +349,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  /* ── Forgot Password ────────────────────────────────────────── */
+
+  async function resetPassword(email: string): Promise<{ error?: string; success?: boolean }> {
+    try {
+      await sendPasswordResetEmail(auth, email)
+      return { success: true }
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code ?? ''
+      const messages: Record<string, string> = {
+        'auth/user-not-found':  'No account found with this email address.',
+        'auth/invalid-email':   'Please enter a valid email address.',
+        'auth/too-many-requests': 'Too many requests. Try again later.',
+      }
+      return { error: messages[code] ?? 'Failed to send reset email. Try again.' }
+    }
+  }
+
   /* ── Logout ─────────────────────────────────────────────────── */
 
   async function logout() {
@@ -356,7 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ firebaseUser, profile, loading, login, loginWithGoogle, sendOtp, verifyOtp, logout }}
+      value={{ firebaseUser, profile, loading, login, loginWithGoogle, sendOtp, verifyOtp, resetPassword, logout }}
     >
       {children}
     </AuthContext.Provider>

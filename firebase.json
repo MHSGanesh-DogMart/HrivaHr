@@ -12,17 +12,9 @@
     ],
     "rewrites": [
       {
-        "source": "/api/**",
-        "function": "invite"
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
     ]
-  },
-  "functions": {
-    "source": "functions",
-    "runtime": "nodejs20"
   }
 }

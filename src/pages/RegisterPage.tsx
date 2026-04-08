@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -14,6 +14,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Button as UIButton } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { registerCompany, generateSlug, isSlugAvailable } from '@/services/registerCompany'
 import { getPlatformConfig, type PlatformConfig } from '@/services/platformConfigService'
@@ -23,17 +24,17 @@ const PLAN_ICONS: Record<string, React.ElementType> = {
   free: Gift, starter: Zap, pro: Star, enterprise: Crown,
 }
 const PLAN_ACTIVE: Record<string, string> = {
-  free: 'border-blue-500 bg-blue-50', starter: 'border-blue-500 bg-blue-50',
-  pro: 'border-violet-500 bg-violet-50', enterprise: 'border-amber-500 bg-amber-50',
+  free: 'border-slate-900 bg-slate-50', starter: 'border-slate-900 bg-slate-50',
+  pro: 'border-slate-900 bg-slate-50', enterprise: 'border-slate-900 bg-slate-50',
 }
 
 /* ─── Step Definitions ─────────────────────────────────────────── */
 const STEPS = [
-  { id: 1, label: 'Company Identity', shortLabel: 'Company', icon: Building2, color: 'from-blue-500 to-indigo-600' },
-  { id: 2, label: 'Location & Contact', shortLabel: 'Location', icon: MapPin, color: 'from-emerald-500 to-teal-600' },
-  { id: 3, label: 'Work Configuration', shortLabel: 'Work Setup', icon: Settings2, color: 'from-violet-500 to-purple-600' },
-  { id: 4, label: 'Admin Account', shortLabel: 'Admin', icon: UserCircle, color: 'from-amber-500 to-orange-500' },
-  { id: 5, label: 'Plan & Launch', shortLabel: 'Plan', icon: Rocket, color: 'from-rose-500 to-pink-600' },
+  { id: 1, label: 'Company Identity', shortLabel: 'Company', icon: Building2, color: 'bg-slate-900' },
+  { id: 2, label: 'Location & Contact', shortLabel: 'Location', icon: MapPin, color: 'bg-slate-900' },
+  { id: 3, label: 'Work Configuration', shortLabel: 'Work Setup', icon: Settings2, color: 'bg-slate-900' },
+  { id: 4, label: 'Admin Account', shortLabel: 'Admin', icon: UserCircle, color: 'bg-slate-900' },
+  { id: 5, label: 'Plan & Launch', shortLabel: 'Plan', icon: Rocket, color: 'bg-slate-900' },
 ]
 
 /* ─── Form State ────────────────────────────────────────────────── */
@@ -96,8 +97,8 @@ function TextField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={cn(
-            'h-10 text-[13px] border-slate-200 bg-white rounded-xl transition-all duration-200',
-            'focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:ring-offset-0 focus-visible:border-blue-400',
+            'h-10 text-[13px] border-slate-200 bg-white rounded-md transition-all duration-200',
+            'focus-visible:ring-1 focus-visible:ring-slate-900 focus-visible:ring-offset-0 focus-visible:border-slate-900',
             Icon ? 'pl-9' : 'pl-3.5',
           )}
         />
@@ -139,7 +140,7 @@ function TextareaField({ label, required, placeholder, value, onChange }: {
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3.5 py-2.5 text-[13px] border border-slate-200 bg-white rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all duration-200 resize-none"
+        className="w-full px-3.5 py-2.5 text-[13px] border border-slate-200 bg-white rounded-md text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 resize-none"
       />
     </div>
   )
@@ -151,10 +152,10 @@ function ToggleChip({ label, selected, onClick }: { label: string; selected: boo
       type="button"
       onClick={onClick}
       className={cn(
-        'px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all duration-150',
+        'px-3 py-1.5 rounded-md text-[11px] font-bold border transition-all duration-150 uppercase tracking-tight',
         selected
-          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/20'
-          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50',
+          ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+          : 'bg-white text-slate-400 border-slate-200 hover:border-slate-800 hover:text-slate-800',
       )}
     >
       {label}
@@ -369,25 +370,24 @@ function StepLocation({ form, update }: { form: FormData; update: (k: keyof Form
                className="pl-10 h-11 text-[13px] border-slate-200 bg-white rounded-xl focus-visible:ring-blue-500/20"
              />
            </div>
-           <Button onClick={handleSearch} disabled={searching} className="h-11 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[13px]">
+           <UIButton onClick={handleSearch} disabled={searching} className="h-11 px-6 bg-slate-900 hover:bg-black text-white rounded-md text-[11px] font-bold uppercase tracking-wider">
              {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
-           </Button>
-           <Button variant="outline" onClick={useCurrentLocation} title="Current Location" className="h-11 w-11 p-0 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50">
+           </UIButton>
+           <UIButton variant="outline" onClick={useCurrentLocation} title="Current Location" className="h-11 w-11 p-0 rounded-md border-slate-200 text-slate-600 hover:bg-slate-50">
              <Navigation className="w-4 h-4" />
-           </Button>
+           </UIButton>
         </div>
       </div>
 
       {/* Map Container */}
       <div className="relative group">
-         <div ref={mapRef} className="w-full h-[220px] rounded-2xl border-2 border-slate-100 bg-slate-50 overflow-hidden shadow-inner relative z-0" />
-         <div className="absolute bottom-3 right-3 z-[1000] bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm pointer-events-none">
-            <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
-              <MapPin className="w-2.5 h-2.5 text-blue-500" />
-              {form.lat ? `${form.lat.toFixed(4)}, ${form.lng?.toFixed(4)}` : 'Point HQ Location'}
+         <div ref={mapRef} className="w-full h-[240px] rounded-md border border-slate-200 bg-slate-50 overflow-hidden shadow-inner relative z-0" />
+         <div className="absolute bottom-3 right-3 z-[1000] bg-white/95 backdrop-blur-md px-3 py-2 rounded-md border border-slate-200 shadow-sm pointer-events-none">
+            <p className="text-[10px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+              <MapPin className="w-3 h-3 text-slate-900" />
+              {form.lat ? `${form.lat.toFixed(6)}, ${form.lng?.toFixed(6)}` : 'Point HQ Identifier'}
             </p>
          </div>
-         <div className="absolute inset-x-0 bottom-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity rounded-b-2xl pointer-events-none z-[1001]" />
       </div>
 
       <TextareaField label="Head Office Address" required placeholder="Building name, street, area..."
@@ -692,32 +692,26 @@ function StepPlanLaunch({ form, update, config }: { form: FormData; update: (k: 
                 type="button"
                 onClick={() => update('plan', plan.id)}
                 className={cn(
-                   'relative p-4 rounded-2xl border-2 text-left transition-all duration-200 border-slate-200 bg-slate-50',
-                   sel ? (PLAN_ACTIVE[plan.id] ?? 'border-blue-500 bg-blue-50') + ' shadow-md' : 'hover:border-slate-300',
+                   'relative p-5 rounded-md border text-left transition-all duration-200 border-slate-200 bg-white',
+                   sel ? 'border-slate-900 bg-slate-50/50 shadow-sm' : 'hover:border-slate-300',
                  )}
               >
                 {plan.tag && (
                   <div className="absolute -top-2.5 left-3">
-                    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full text-white',
-                      plan.id === 'pro' ? 'bg-violet-600' : 'bg-amber-500')}>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-900 text-white uppercase tracking-tight">
                       {plan.tag}
                     </span>
                   </div>
                 )}
-                {sel && (
-                  <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                    <Check className="w-3 h-3 text-white" />
-                  </div>
-                )}
-                <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center mb-3',
-                  sel ? 'bg-white shadow-sm' : 'bg-slate-100')}>
-                  <PlanIcon className={cn('w-4 h-4', sel ? 'text-blue-600' : 'text-slate-500')} />
+                <div className={cn('w-9 h-9 rounded-md flex items-center justify-center mb-4 border',
+                  sel ? 'bg-slate-900 border-slate-900' : 'bg-slate-50 border-slate-100')}>
+                  <PlanIcon className={cn('w-4.5 h-4.5', sel ? 'text-white' : 'text-slate-400')} />
                 </div>
-                <p className={cn('text-[13px] font-bold', sel ? 'text-slate-900' : 'text-slate-700')}>{plan.label}</p>
-                <p className={cn('text-[15px] font-bold mt-0.5', sel ? 'text-blue-700' : 'text-slate-600')}>
-                  {plan.price}<span className="text-[11px] font-normal text-slate-400">{plan.period}</span>
+                <p className={cn('text-[13px] font-bold uppercase tracking-tight', sel ? 'text-slate-900' : 'text-slate-600')}>{plan.label}</p>
+                <p className={cn('text-[18px] font-bold mt-0.5 tracking-tight', sel ? 'text-slate-900' : 'text-slate-600')}>
+                  {plan.price}<span className="text-[11px] font-bold text-slate-400 uppercase ml-1">{plan.period}</span>
                 </p>
-                <p className="text-[10.5px] text-slate-500 mt-1">{plan.employees}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{plan.employees}</p>
                 <ul className="mt-3 space-y-1.5">
                   {plan.features.map((f) => (
                     <li key={f} className="flex items-center gap-1.5 text-[11px] text-slate-600">

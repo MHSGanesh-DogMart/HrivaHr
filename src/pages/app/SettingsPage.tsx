@@ -3,19 +3,19 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Building2, Clock, MapPin, Wifi, Plus, Trash2, Save, Loader2,
-  CheckCircle2, ChevronRight, AlertCircle, Shield, Calendar,
+  CheckCircle2, ChevronRight, AlertCircle, Shield,
   Settings2, Navigation, Search, X,
 } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/AuthContext'
 import {
   getCompanySettings, saveCompanySettings,
-  type CompanySettings, type Shift, type ClockInMode,
+  type CompanySettings, type Shift,
 } from '@/services/settingsService'
+import { cn } from '@/lib/utils'
 
 /* Fix leaflet default marker icons */
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -46,10 +46,10 @@ function DayToggle({ days, onChange }: { days: string[]; onChange: (d: string[])
         return (
           <button key={d} type="button"
             onClick={() => onChange(on ? days.filter((x) => x !== d) : [...days, d])}
-            className={`w-10 h-9 rounded-lg text-[11.5px] font-bold border transition-all duration-150 ${
-              on ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-transparent shadow-sm shadow-blue-400/30'
-                 : 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-500'
-            }`}>{d}</button>
+            className={cn("w-10 h-9 rounded text-[11px] font-bold border transition-all uppercase tracking-tight",
+              on ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                 : 'bg-white text-slate-400 border-slate-200 hover:border-slate-800 hover:text-slate-800'
+            )}>{d}</button>
         )
       })}
     </div>
@@ -60,39 +60,43 @@ function DayToggle({ days, onChange }: { days: string[]; onChange: (d: string[])
 function FieldGroup({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{label}</p>
+      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</p>
       {children}
-      {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
+      {hint && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{hint}</p>}
     </div>
   )
 }
 
 /* ── Clock Mode Card ─────────────────────────────────────────────── */
 function ClockModeCard({
-  label, description, icon: Icon, selected, onClick, gradient,
+  label, description, icon: Icon, selected, onClick,
 }: {
   label: string; description: string; icon: React.ElementType
-  selected: boolean; onClick: () => void; gradient: string
+  selected: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" onClick={onClick}
-      className={`w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 ${
-        selected ? 'border-blue-500 bg-blue-50/80 shadow-lg shadow-blue-100'
-                 : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'
-      }`}
+      className={cn("w-full text-left p-4 rounded-md border transition-all duration-200",
+        selected ? 'border-slate-900 bg-slate-50/50 shadow-sm'
+                 : 'border-slate-200 bg-white hover:border-slate-300'
+      )}
     >
-      <div className="flex items-start gap-3.5">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br ${gradient} shadow-md`}>
-          <Icon className="w-5 h-5 text-white" />
+      <div className="flex items-start gap-4">
+        <div className={cn("w-10 h-10 rounded-md flex items-center justify-center shrink-0 border",
+          selected ? 'bg-slate-900 border-slate-900' : 'bg-slate-50 border-slate-100'
+        )}>
+          <Icon className={cn("w-5 h-5", selected ? 'text-white' : 'text-slate-400')} />
         </div>
-        <div className="flex-1 mt-0.5">
+        <div className="flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className={`text-[13px] font-bold ${selected ? 'text-blue-700' : 'text-slate-800'}`}>{label}</p>
-            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${selected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
+            <p className={cn("text-[13px] font-bold uppercase tracking-tight", selected ? 'text-slate-900' : 'text-slate-600')}>{label}</p>
+            <div className={cn("w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all",
+              selected ? 'border-slate-900 bg-slate-900' : 'border-slate-300'
+            )}>
               {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
             </div>
           </div>
-          <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">{description}</p>
+          <p className="text-[12px] text-slate-500 mt-1 font-medium leading-relaxed">{description}</p>
         </div>
       </div>
     </button>
@@ -128,7 +132,7 @@ function MapPicker({
     }).addTo(map)
 
     const marker = L.marker([initLat, initLng], { draggable: true }).addTo(map)
-    const circle = L.circle([initLat, initLng], { radius, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.12 }).addTo(map)
+    const circle = L.circle([initLat, initLng], { radius, color: '#334155', fillColor: '#334155', fillOpacity: 0.12 }).addTo(map)
 
     marker.on('dragend', () => {
       const pos = marker.getLatLng()
@@ -201,11 +205,11 @@ function MapPicker({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search your office location…"
+            placeholder="Search operational coordinates…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); if (!e.target.value) setSearchResults([]) }}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300"
+            className="w-full h-9 pl-9 pr-3 rounded-md border border-slate-200 text-[12px] font-medium text-slate-700 outline-none focus:ring-1 focus:ring-slate-900"
           />
           {search && (
             <button onClick={() => { setSearch(''); setSearchResults([]) }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -214,15 +218,15 @@ function MapPicker({
           )}
         </div>
         <button onClick={handleSearch} disabled={searching}
-          className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[12.5px] font-semibold flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-60">
+          className="h-9 px-4 rounded-md bg-slate-900 hover:bg-black text-white text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 shrink-0 transition-colors disabled:opacity-60">
           {searching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-          Search
+          Locate
         </button>
         <button onClick={useCurrentLocation} disabled={locating}
           title="Use current location"
-          className="h-9 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-[12.5px] font-semibold flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-60">
+          className="h-9 px-3 rounded-md bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 shrink-0 transition-colors disabled:opacity-60">
           {locating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5" />}
-          My Location
+          Auto-Detect
         </button>
       </div>
 
@@ -230,10 +234,10 @@ function MapPicker({
       <AnimatePresence>
         {searchResults.length > 0 && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-10 relative">
+            className="bg-white border border-slate-200 rounded-md shadow-lg overflow-hidden z-10 relative">
             {searchResults.map((r, i) => (
               <button key={i} onClick={() => pickResult(r)}
-                className="w-full text-left px-4 py-2.5 text-[12.5px] text-slate-700 hover:bg-blue-50 hover:text-blue-700 border-b border-slate-50 last:border-0 transition-colors">
+                className="w-full text-left px-4 py-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
                 <MapPin className="w-3 h-3 inline mr-2 text-slate-400" />
                 {r.display_name}
               </button>
@@ -243,16 +247,16 @@ function MapPicker({
       </AnimatePresence>
 
       {/* Map */}
-      <div ref={divRef} className="h-72 rounded-2xl overflow-hidden border border-slate-200 shadow-sm" />
+      <div ref={divRef} className="h-72 rounded-md overflow-hidden border border-slate-200 shadow-sm" />
 
       {/* Coords display */}
       {lat !== null && lng !== null && (
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
-            <MapPin className="w-3 h-3 text-blue-500" />
-            <span className="text-[12px] font-mono text-slate-600">{lat.toFixed(6)}, {lng.toFixed(6)}</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5">
+            <MapPin className="w-3 h-3 text-slate-900" />
+            <span className="text-[12px] font-mono font-bold text-slate-600">{lat.toFixed(6)}, {lng.toFixed(6)}</span>
           </div>
-          <p className="text-[11.5px] text-slate-400">Click on the map or drag the pin to adjust</p>
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Interactive map: Transpose pin to adjust operational boundary.</p>
         </div>
       )}
     </div>
@@ -262,11 +266,11 @@ function MapPicker({
 /* ── Sidebar Nav ─────────────────────────────────────────────────── */
 type Tab = 'company' | 'shifts' | 'clockin' | 'policies'
 
-const NAV: { id: Tab; label: string; sub: string; icon: React.ElementType; gradient: string }[] = [
-  { id: 'company',  label: 'Company Info', sub: 'Name, email & timezone', icon: Building2, gradient: 'from-blue-500 to-indigo-600' },
-  { id: 'shifts',   label: 'Work Shifts',  sub: 'Timings & working days', icon: Clock,     gradient: 'from-violet-500 to-purple-600' },
-  { id: 'clockin',  label: 'Clock-In',     sub: 'Location & IP rules',    icon: MapPin,    gradient: 'from-emerald-500 to-teal-600' },
-  { id: 'policies', label: 'Policies',     sub: 'Leave & off days',       icon: Shield,    gradient: 'from-amber-500 to-orange-500' },
+const NAV: { id: Tab; label: string; sub: string; icon: React.ElementType }[] = [
+  { id: 'company',  label: 'Company Info', sub: 'Baseline parameters', icon: Building2 },
+  { id: 'shifts',   label: 'Shift Rotas',  sub: 'Temporal scheduling', icon: Clock },
+  { id: 'clockin',  label: 'Attendance Control',  sub: 'Geospatial rules', icon: MapPin },
+  { id: 'policies', label: 'Governance',   sub: 'Policy frameworks', icon: Shield },
 ]
 
 /* ── Main Page ──────────────────────────────────────────────────── */
@@ -315,86 +319,86 @@ export default function SettingsPage() {
       <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div>
-          <p className="text-[11px] text-slate-400 mb-1 flex items-center gap-1">
+          <p className="text-[11px] text-slate-400 mb-1 flex items-center gap-1 font-bold uppercase tracking-tight">
             <span>Home</span><ChevronRight className="w-3 h-3" /><span className="text-slate-600">Settings</span>
           </p>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Company Settings</h1>
-          <p className="text-slate-500 text-[13px] mt-0.5">Manage your workspace, shifts, and attendance policies</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight whitespace-nowrap">Workspace Configuration</h1>
+          <p className="text-slate-500 text-[13px] mt-0.5 font-medium">Coordinate corporate parameters, rotational shifts, and compliance policies.</p>
         </div>
         <Button onClick={handleSave} disabled={saving || loading} size="sm"
-          className={`gap-2 text-[13px] min-w-[140px] shadow-md transition-all duration-300 ${
-            saved ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/20'} text-white`}>
+          className={cn("gap-2 text-[11px] font-bold uppercase tracking-wider min-w-[140px] shadow-sm transition-all h-9 rounded-md",
+            saved ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-slate-900 hover:bg-black text-white')}>
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-          {saving ? 'Saving…' : saved ? 'All Saved!' : 'Save Changes'}
+          {saving ? 'Transmitting' : saved ? 'Committed' : 'Commit Changes'}
         </Button>
       </motion.div>
 
       <AnimatePresence>
         {error && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 mb-5">
-            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-            <p className="text-[13px] text-rose-700">{error}</p>
+            className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-md px-4 py-3 mb-6">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <p className="text-[12px] font-bold text-red-700 uppercase tracking-tight">{error}</p>
           </motion.div>
         )}
       </AnimatePresence>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-32 gap-3">
-          <Loader2 className="w-9 h-9 text-blue-500 animate-spin" />
-          <p className="text-[13px] text-slate-400">Loading settings…</p>
+        <div className="flex flex-col items-center justify-center py-32 gap-4">
+          <Loader2 className="w-10 h-10 text-slate-900 animate-spin" />
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Initialising Secure Workspace…</p>
         </div>
       ) : settings ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-          className="flex gap-6 items-start">
+          className="flex gap-8 items-start">
 
           {/* ── Sidebar ─────────────────────────────────────────── */}
-          <div className="w-[210px] shrink-0 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden sticky top-6">
-            <div className="px-4 pt-4 pb-3 border-b border-slate-50">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center mb-2">
+          <div className="w-[240px] shrink-0 bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden sticky top-6">
+            <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+              <div className="w-8 h-8 rounded-md bg-slate-900 flex items-center justify-center mb-3">
                 <Settings2 className="w-4 h-4 text-white" />
               </div>
-              <p className="text-[13px] font-bold text-slate-800">Configuration</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Workspace settings</p>
+              <p className="text-[12px] font-bold text-slate-900 uppercase tracking-wider">Administration</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">Control Center</p>
             </div>
-
-            <nav className="p-2 space-y-0.5">
-              {NAV.map(({ id, label, sub, icon: Icon, gradient }) => {
+ 
+            <nav className="p-2 space-y-1">
+              {NAV.map(({ id, label, sub, icon: Icon }) => {
                 const active = tab === id
                 return (
                   <button key={id} onClick={() => setTab(id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150 group ${
-                      active ? 'bg-slate-900' : 'hover:bg-slate-50'}`}>
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br ${gradient} shadow-sm`}>
-                      <Icon className="w-3.5 h-3.5 text-white" />
+                    className={cn("w-full flex items-center gap-3 px-3 py-3 rounded-md text-left transition-all group",
+                      active ? 'bg-slate-900 shadow-sm' : 'hover:bg-slate-50')}>
+                    <div className={cn("w-7 h-7 rounded flex items-center justify-center shrink-0 border",
+                      active ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-100')}>
+                      <Icon className={cn("w-3.5 h-3.5", active ? 'text-white' : 'text-slate-400')} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[12.5px] font-semibold truncate ${active ? 'text-white' : 'text-slate-700 group-hover:text-slate-900'}`}>{label}</p>
-                      <p className="text-[10.5px] text-slate-400 truncate">{sub}</p>
+                      <p className={cn("text-[11px] font-bold uppercase tracking-wide truncate", active ? 'text-white' : 'text-slate-600 group-hover:text-slate-900')}>{label}</p>
+                      <p className={cn("text-[10px] font-bold uppercase tracking-tighter truncate leading-none mt-0.5", active ? 'text-slate-400' : 'text-slate-400')}>{sub}</p>
                     </div>
-                    {active && <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />}
                   </button>
                 )
               })}
             </nav>
 
-            <div className="px-4 py-3 border-t border-slate-50">
-              <p className="text-[10.5px] text-slate-400 text-center leading-relaxed">
-                Changes apply workspace-wide
+            <div className="px-5 py-4 border-t border-slate-50 bg-slate-50/30">
+              <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-tighter leading-relaxed">
+                Global Workspace Scope
               </p>
             </div>
           </div>
 
           {/* ── Content ────────────────────────────────────────── */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-5">
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${activeNav.gradient} flex items-center justify-center shadow-md`}>
-                <activeNav.icon className="w-5 h-5 text-white" />
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-center shadow-sm">
+                <activeNav.icon className="w-5 h-5 text-slate-900" />
               </div>
               <div>
-                <h2 className="text-[16px] font-bold text-slate-900">{activeNav.label}</h2>
-                <p className="text-[12px] text-slate-500">{activeNav.sub}</p>
+                <h2 className="text-[14px] font-bold text-slate-900 uppercase tracking-widest">{activeNav.label}</h2>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">{activeNav.sub}</p>
               </div>
             </div>
 
@@ -402,33 +406,33 @@ export default function SettingsPage() {
               <motion.div key={tab}
                 initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -6 }} transition={{ duration: 0.18 }}
-                className="space-y-5">
+                className="space-y-6">
 
                 {/* ═══ COMPANY ═════════════════════════════════════ */}
                 {tab === 'company' && (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
-                    <FieldGroup label="Company Name">
-                      <Input placeholder="e.g. Acme Pvt Ltd" className="h-10 rounded-xl text-[13px]"
+                  <div className="bg-white rounded-md border border-slate-200 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+                    <FieldGroup label="Corporate Identifier">
+                      <Input placeholder="e.g. Acme Pvt Ltd" className="h-10 rounded-md text-[13px] font-medium border-slate-200"
                         value={settings.companyName} onChange={(e) => update({ companyName: e.target.value })} />
                     </FieldGroup>
-                    <FieldGroup label="Company Email">
-                      <Input type="email" placeholder="hr@company.com" className="h-10 rounded-xl text-[13px]"
+                    <FieldGroup label="Administrative Email">
+                      <Input type="email" placeholder="hr@company.com" className="h-10 rounded-md text-[13px] font-medium border-slate-200"
                         value={settings.companyEmail} onChange={(e) => update({ companyEmail: e.target.value })} />
                     </FieldGroup>
-                    <FieldGroup label="Phone">
-                      <Input placeholder="+91 98765 43210" className="h-10 rounded-xl text-[13px]"
+                    <FieldGroup label="Communication Channel">
+                      <Input placeholder="+91 98765 43210" className="h-10 rounded-md text-[13px] font-medium border-slate-200"
                         value={settings.companyPhone} onChange={(e) => update({ companyPhone: e.target.value })} />
                     </FieldGroup>
-                    <FieldGroup label="Timezone">
+                    <FieldGroup label="Temporal Zone">
                       <select value={settings.timezone} onChange={(e) => update({ timezone: e.target.value })}
-                        className="w-full h-10 rounded-xl border border-input bg-white px-3 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30">
+                        className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:ring-1 focus:ring-slate-900">
                         {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
                       </select>
                     </FieldGroup>
                     <div className="sm:col-span-2">
-                      <FieldGroup label="Office Address">
+                      <FieldGroup label="Physical HQ Address">
                         <textarea rows={3} placeholder="123, MG Road, Bangalore, Karnataka 560001"
-                          className="w-full rounded-xl border border-input bg-white px-3 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-medium text-slate-700 outline-none focus:ring-1 focus:ring-slate-900 resize-none"
                           value={settings.companyAddress} onChange={(e) => update({ companyAddress: e.target.value })} />
                       </FieldGroup>
                     </div>
@@ -440,42 +444,42 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     {settings.shifts.map((shift, idx) => (
                       <motion.div key={shift.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
-                        className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                        <div className="flex items-center gap-3 px-5 py-3.5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
-                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm shrink-0">
-                            <Clock className="w-4 h-4 text-white" />
+                        className="bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
+                          <div className="w-8 h-8 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
                           </div>
-                          <Input placeholder="Shift name (e.g. Morning Shift)"
-                            className="h-8 text-[13px] font-semibold border-none bg-transparent shadow-none px-0 focus-visible:ring-0 flex-1"
+                          <Input placeholder="Shift name (e.g. Standard Morning)"
+                            className="h-8 text-[12px] font-bold uppercase tracking-tight border-none bg-transparent shadow-none px-0 focus-visible:ring-0 flex-1"
                             value={shift.name} onChange={(e) => updateShift(shift.id, { name: e.target.value })} />
-                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
-                            {shift.startTime} – {shift.endTime}
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded shrink-0 uppercase tracking-widest">
+                            {shift.startTime} — {shift.endTime}
                           </span>
                           {settings.shifts.length > 1 && (
                             <button type="button" onClick={() => removeShift(shift.id)}
-                              className="p-1.5 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+                              className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
-                        <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                          <FieldGroup label="Start Time">
-                            <Input type="time" className="h-10 rounded-xl text-[13px]"
+                        <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-6">
+                          <FieldGroup label="Shift Commencement">
+                            <Input type="time" className="h-10 rounded-md text-[13px] font-medium border-slate-200"
                               value={shift.startTime} onChange={(e) => updateShift(shift.id, { startTime: e.target.value })} />
                           </FieldGroup>
-                          <FieldGroup label="End Time">
-                            <Input type="time" className="h-10 rounded-xl text-[13px]"
+                          <FieldGroup label="Shift Conclusion">
+                            <Input type="time" className="h-10 rounded-md text-[13px] font-medium border-slate-200"
                               value={shift.endTime} onChange={(e) => updateShift(shift.id, { endTime: e.target.value })} />
                           </FieldGroup>
-                          <FieldGroup label="Grace Period" hint="Late allowance">
+                          <FieldGroup label="Audit Grace" hint="Late allowance threshold">
                             <div className="flex items-center gap-2">
-                              <Input type="number" min={0} max={60} className="h-10 rounded-xl text-[13px] w-24"
+                              <Input type="number" min={0} max={60} className="h-10 rounded-md text-[13px] font-bold w-24 border-slate-200"
                                 value={shift.gracePeriodMins} onChange={(e) => updateShift(shift.id, { gracePeriodMins: Number(e.target.value) })} />
-                              <span className="text-[12px] text-slate-500">mins</span>
+                              <span className="text-[11px] font-bold text-slate-400 uppercase">Mins</span>
                             </div>
                           </FieldGroup>
-                          <div className="col-span-2 sm:col-span-3">
-                            <FieldGroup label="Working Days">
+                          <div className="col-span-2 sm:col-span-3 pt-2">
+                            <FieldGroup label="Operational Days">
                               <DayToggle days={shift.workDays} onChange={(d) => updateShift(shift.id, { workDays: d })} />
                             </FieldGroup>
                           </div>
@@ -483,36 +487,32 @@ export default function SettingsPage() {
                       </motion.div>
                     ))}
                     <button type="button" onClick={addShift}
-                      className="w-full h-14 rounded-2xl border-2 border-dashed border-slate-200 hover:border-violet-400 hover:bg-violet-50/50 text-slate-400 hover:text-violet-600 transition-all duration-200 flex items-center justify-center gap-2 text-[13px] font-semibold group">
+                      className="w-full h-14 rounded-md border border-dashed border-slate-300 hover:border-slate-800 hover:bg-slate-50 text-slate-400 hover:text-slate-900 transition-all flex items-center justify-center gap-2 text-[12px] font-bold uppercase tracking-wider group">
                       <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                      Add New Shift
+                      Append Shift Prototype
                     </button>
                   </div>
                 )}
 
                 {/* ═══ CLOCK-IN ════════════════════════════════════ */}
                 {tab === 'clockin' && (
-                  <div className="space-y-5">
+                  <div className="space-y-6">
                     {/* Mode selector */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Select Clock-In Method</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <ClockModeCard label="Open Clock-In"
-                          description="No restrictions — employees can clock in from anywhere."
-                          icon={Clock} gradient="from-slate-600 to-slate-800"
-                          selected={settings.clockInMode === 'none'} onClick={() => update({ clockInMode: 'none' })} />
-                        <ClockModeCard label="Location-Based"
-                          description="Clock-in only within a set radius of your office GPS pin."
-                          icon={MapPin} gradient="from-emerald-500 to-teal-600"
-                          selected={settings.clockInMode === 'location'} onClick={() => update({ clockInMode: 'location' })} />
-                        <ClockModeCard label="IP-Based"
-                          description="Restrict clock-ins to approved office IP addresses."
-                          icon={Wifi} gradient="from-amber-500 to-orange-500"
-                          selected={settings.clockInMode === 'ip'} onClick={() => update({ clockInMode: 'ip' })} />
-                        <ClockModeCard label="Location + IP (Both)"
-                          description="Employees must pass both location and IP checks."
-                          icon={Shield} gradient="from-blue-600 to-indigo-600"
-                          selected={settings.clockInMode === 'both'} onClick={() => update({ clockInMode: 'both' })} />
+                    <div className="bg-white rounded-md border border-slate-200 shadow-sm p-6">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Protocol Selection</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <ClockModeCard label="Unrestricted"
+                          description="Baseline protocol: Personnel can authenticate from any temporal or spatial coordinate."
+                          icon={Clock} selected={settings.clockInMode === 'none'} onClick={() => update({ clockInMode: 'none' })} />
+                        <ClockModeCard label="Geospatial-Strict"
+                          description="Spatial protocol: Personnel must be within defined coordinates to authenticate."
+                          icon={MapPin} selected={settings.clockInMode === 'location'} onClick={() => update({ clockInMode: 'location' })} />
+                        <ClockModeCard label="Network-Strict"
+                          description="Network protocol: Restricted to authorized corporate IP gateways."
+                          icon={Wifi} selected={settings.clockInMode === 'ip'} onClick={() => update({ clockInMode: 'ip' })} />
+                        <ClockModeCard label="Hybrid Enforcement"
+                          description="Max protocol: Authentication requires dual spatial and network validation."
+                          icon={Shield} selected={settings.clockInMode === 'both'} onClick={() => update({ clockInMode: 'both' })} />
                       </div>
                     </div>
 
@@ -520,24 +520,24 @@ export default function SettingsPage() {
                     <AnimatePresence>
                       {(settings.clockInMode === 'location' || settings.clockInMode === 'both') && (
                         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
-                          <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden">
-                            <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100">
+                          <div className="bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-b border-slate-200">
                               <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-emerald-600" />
-                                <p className="text-[13px] font-bold text-emerald-700">Office Location</p>
+                                <MapPin className="w-4 h-4 text-slate-900" />
+                                <p className="text-[13px] font-bold text-slate-900 uppercase tracking-wider">Geospatial Boundary</p>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Radius</label>
+                              <div className="flex items-center gap-4">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Radius</label>
                                 <div className="flex items-center gap-1.5">
                                   <Input type="number" min={50} max={5000}
-                                    className="h-7 w-20 text-[12px] rounded-lg border-slate-200"
+                                    className="h-7 w-20 text-[12px] font-bold rounded-md border-slate-200 text-slate-900"
                                     value={settings.locationRadius}
                                     onChange={(e) => update({ locationRadius: Number(e.target.value) })} />
-                                  <span className="text-[11px] text-slate-500">m</span>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase">Meters</span>
                                 </div>
                               </div>
                             </div>
-                            <div className="p-4">
+                            <div className="p-5">
                               <MapPicker
                                 lat={settings.officeLatitude}
                                 lng={settings.officeLongitude}
@@ -554,21 +554,21 @@ export default function SettingsPage() {
                     <AnimatePresence>
                       {(settings.clockInMode === 'ip' || settings.clockInMode === 'both') && (
                         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
-                          <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
-                            <div className="flex items-center gap-2 px-5 py-3.5 bg-amber-50 border-b border-amber-100">
-                              <Wifi className="w-4 h-4 text-amber-600" />
-                              <p className="text-[13px] font-bold text-amber-700">Allowed IP Addresses</p>
+                          <div className="bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="flex items-center gap-2 px-5 py-3.5 bg-slate-50 border-b border-slate-200">
+                              <Wifi className="w-4 h-4 text-slate-900" />
+                              <p className="text-[13px] font-bold text-slate-900 uppercase tracking-wider">Authorized Network Gateways</p>
                             </div>
-                            <div className="p-5 space-y-2">
+                            <div className="p-5 space-y-3">
                               {(settings.allowedIPs.length === 0 ? [''] : [...settings.allowedIPs, '']).map((ip, i) => {
                                 const isLast = i === (settings.allowedIPs.length === 0 ? 0 : settings.allowedIPs.length)
                                 return (
-                                  <div key={i} className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                                      <span className="text-[10px] font-bold text-amber-600">{i + 1}</span>
+                                  <div key={i} className="flex items-center gap-3">
+                                    <div className="w-6 h-6 rounded bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                      <span className="text-[10px] font-bold text-slate-600">{i + 1}</span>
                                     </div>
-                                    <Input placeholder={`e.g. 192.168.1.${i + 1} or 10.0.0.0/24`}
-                                      className="h-9 text-[13px] rounded-xl flex-1" value={ip}
+                                    <Input placeholder={`Gateway ID (e.g. 192.168.1.${i + 1} or CIDR range)`}
+                                      className="h-9 text-[12px] font-medium rounded-md flex-1 border-slate-200" value={ip}
                                       onChange={(e) => {
                                         const list = [...settings.allowedIPs]
                                         if (isLast && e.target.value) list.push(e.target.value)
@@ -577,14 +577,14 @@ export default function SettingsPage() {
                                       }} />
                                     {!isLast && (
                                       <button type="button" onClick={() => update({ allowedIPs: settings.allowedIPs.filter((_, idx) => idx !== i) })}
-                                        className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
+                                        className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
                                     )}
                                   </div>
                                 )
                               })}
-                              <p className="text-[12px] text-slate-400 pt-1">Individual IPs (192.168.1.5) or CIDR ranges (10.0.0.0/24)</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight pt-1">Protocol: Append individual IPs or CIDR notation blocks.</p>
                             </div>
                           </div>
                         </motion.div>
@@ -595,15 +595,15 @@ export default function SettingsPage() {
 
                 {/* ═══ POLICIES ════════════════════════════════════ */}
                 {tab === 'policies' && (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-8">
-                    <FieldGroup label="Max Leave per Month" hint="Casual/sick leaves allowed per employee per month">
-                      <div className="flex items-center gap-2">
-                        <Input type="number" min={0} max={30} className="h-10 rounded-xl text-[13px] w-28"
+                  <div className="bg-white rounded-md border border-slate-200 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-10">
+                    <FieldGroup label="Absence Quota Control" hint="Monthly Permissible Limit Per Personnel">
+                      <div className="flex items-center gap-3">
+                        <Input type="number" min={0} max={30} className="h-10 rounded-md text-[13px] font-bold w-28 border-slate-200"
                           value={settings.maxLeavePerMonth} onChange={(e) => update({ maxLeavePerMonth: Number(e.target.value) })} />
-                        <span className="text-[13px] text-slate-500 font-medium">days / month</span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase">Days / Month</span>
                       </div>
                     </FieldGroup>
-                    <FieldGroup label="Weekly Off Days" hint="These days are treated as non-working holidays">
+                    <FieldGroup label="Governance Downtime" hint="Weekly Operational Suspension Days">
                       <DayToggle days={settings.weeklyOffDays} onChange={(d) => update({ weeklyOffDays: d })} />
                     </FieldGroup>
                   </div>
@@ -612,7 +612,6 @@ export default function SettingsPage() {
               </motion.div>
             </AnimatePresence>
           </div>
-
         </motion.div>
       ) : null}
     </div>

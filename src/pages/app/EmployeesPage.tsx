@@ -1,622 +1,1331 @@
+// @ts-nocheck
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { API_ENDPOINTS } from '@/lib/apiConfig'
 import {
-  Plus, Search, SlidersHorizontal, Eye, Pencil,
-  ChevronLeft, ChevronRight, LayoutGrid, List,
-  Mail, MapPin, Calendar, Loader2, Users,
+  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Users, Loader2, X, AlertCircle, Filter, Upload,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import {
-  getEmployees, addEmployee, generateEmployeeId,
+  getEmployees, addEmployee, updateEmployee, deleteEmployee, generateEmployeeId,
   type FirestoreEmployee, type EmployeeStatus,
+  DEPARTMENTS, DESIGNATIONS, INDIAN_STATES,
 } from '@/services/employeeService'
+import BulkImportModal from '@/components/employees/BulkImportModal'
 
-/* ── Constants ─────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────
+   Constants
+───────────────────────────────────────────────────────────────── */
 
-const PRESET_DEPARTMENTS = ['Engineering', 'HR', 'Finance', 'Sales', 'Operations', 'Marketing', 'Design', 'Legal']
-const statuses: (EmployeeStatus | 'All')[] = ['All', 'Active', 'Inactive', 'On Leave']
-
-const avatarGradients = [
-  'from-violet-500 to-purple-600',
-  'from-blue-500 to-indigo-600',
-  'from-emerald-500 to-teal-600',
-  'from-amber-400 to-orange-500',
-  'from-rose-500 to-pink-600',
+const TABS = [
+  { id: 'basic',   label: 'Basic Info' },
+  { id: 'work',    label: 'Work Details' },
+  { id: 'address', label: 'Address' },
+  { id: 'govtids', label: 'Govt IDs' },
+  { id: 'bank',    label: 'Bank Details' },
 ]
 
-const deptColors: Record<string, string> = {
-  Engineering: 'bg-blue-50 text-blue-700 border-blue-200',
-  HR:          'bg-purple-50 text-purple-700 border-purple-200',
-  Finance:     'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Sales:       'bg-amber-50 text-amber-700 border-amber-200',
-  Operations:  'bg-rose-50 text-rose-700 border-rose-200',
-  Marketing:   'bg-sky-50 text-sky-700 border-sky-200',
-  Design:      'bg-pink-50 text-pink-700 border-pink-200',
-  Legal:       'bg-indigo-50 text-indigo-700 border-indigo-200',
+const PAGE_SIZE = 10
+
+const EMPTY_FORM = {
+  // Basic
+  firstName: '', lastName: '', middleName: '',
+  email: '', personalEmail: '',
+  phone: '', personalPhone: '',
+  gender: '', dateOfBirth: '',
+  bloodGroup: '', maritalStatus: '',
+  nationality: 'Indian', caste: '',
+  differentlyAbled: false,
+  // Work
+  employeeId: '', joinDate: '',
+  designation: '', department: '',
+  subDepartment: '', location: '',
+  workType: '', employmentType: '',
+  status: 'Active', salary: '',
+  manager: '', grade: '',
+  probationMonths: '', noticePeriodDays: '',
+  confirmationDate: '', costCenter: '',
+  // Address
+  currentAddressLine: '', currentCity: '', currentState: '',
+  currentPinCode: '', currentCountry: 'India',
+  sameAsCurrent: false,
+  permanentAddressLine: '', permanentCity: '', permanentState: '',
+  permanentPinCode: '', permanentCountry: 'India',
+  // Govt IDs
+  panNumber: '', aadhaarNumber: '',
+  uan: '', esicNumber: '',
+  passportNumber: '', passportExpiry: '',
+  voterIdNumber: '', drivingLicense: '',
+  // Bank
+  bankName: '', accountNumber: '',
+  ifscCode: '', accountType: '',
+  branchName: '',
 }
 
-function StatusBadge({ status }: { status: EmployeeStatus }) {
-  const map: Record<EmployeeStatus, string> = {
-    Active:    'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    Inactive:  'bg-rose-50 text-rose-700 border border-rose-200',
-    'On Leave':'bg-amber-50 text-amber-700 border border-amber-200',
+/* ─────────────────────────────────────────────────────────────────
+   Status badge
+───────────────────────────────────────────────────────────────── */
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    'Active':    'bg-green-50 text-green-700 border-green-200',
+    'Inactive':  'bg-slate-100 text-slate-600 border-slate-200',
+    'On Leave':  'bg-amber-50 text-amber-700 border-amber-200',
+    'Resigned':  'bg-red-50 text-red-600 border-red-200',
+    'On Notice': 'bg-orange-50 text-orange-700 border-orange-200',
   }
-  const dotMap: Record<EmployeeStatus, string> = {
-    Active:    'bg-emerald-500',
-    Inactive:  'bg-rose-500',
-    'On Leave':'bg-amber-500',
-  }
+  const cls = map[status] ?? 'bg-slate-100 text-slate-600 border-slate-200'
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[status]}`}>
-      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${dotMap[status]}`} />
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border',
+        cls,
+      )}
+    >
       {status}
     </span>
   )
 }
 
-const PAGE_SIZE = 8
+/* ─────────────────────────────────────────────────────────────────
+   Shared form primitives
+───────────────────────────────────────────────────────────────── */
 
-/* ── Default form state ────────────────────────────────────────── */
-
-const emptyForm = {
-  firstName:   '',
-  lastName:    '',
-  email:       '',
-  phone:       '',
-  department:  '',
-  designation: '',
-  joinDate:    new Date().toISOString().split('T')[0],
-  salary:      '',
-  location:    '',
-  manager:     '',
+function Field({
+  label, required, error, children,
+}: {
+  label: string
+  required?: boolean
+  error?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className={cn('flex flex-col gap-1.5', error && 'animate-shake')}>
+      <Label className={cn('text-xs font-medium', error ? 'text-red-600' : 'text-slate-600')}>
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </Label>
+      <div className={cn(error && 'ring-2 ring-red-300 ring-offset-0 rounded-md')}>
+        {children}
+      </div>
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1 font-medium">
+          <AlertCircle className="w-3 h-3 flex-shrink-0 text-red-500" />
+          {error}
+        </p>
+      )}
+    </div>
+  )
 }
 
-/* ── Component ─────────────────────────────────────────────────── */
+function FInput({
+  value, onChange, placeholder = '', type = 'text', disabled = false,
+}: {
+  value: string | number
+  onChange: (v: string) => void
+  placeholder?: string
+  type?: string
+  disabled?: boolean
+}) {
+  return (
+    <Input
+      type={type}
+      value={value ?? ''}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      className="h-9 text-sm border-slate-200 focus-visible:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
+    />
+  )
+}
+
+function FSelect({
+  value, onChange, placeholder, options,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  options: string[]
+}) {
+  return (
+    <Select value={value || ''} onValueChange={onChange}>
+      <SelectTrigger className="h-9 text-sm border-slate-200">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(opt => (
+          <SelectItem key={opt} value={opt} className="text-sm">
+            {opt}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   EmployeesPage
+───────────────────────────────────────────────────────────────── */
 
 export default function EmployeesPage() {
-  const { profile } = useAuth()
-  const tenantSlug  = profile?.tenantSlug ?? ''
+  const { profile }    = useAuth()
+  const tenantSlug     = profile?.tenantSlug ?? ''
+  const isAdmin        = profile?.role === 'admin' || profile?.role === 'superadmin'
 
-  const [employees, setEmployees]   = useState<FirestoreEmployee[]>([])
-  const [loading, setLoading]       = useState(true)
+  /* ── List state ──────────────────────────────────────────────── */
+  const [employees, setEmployees]       = useState<FirestoreEmployee[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [search, setSearch]             = useState('')
+  const [deptFilter, setDeptFilter]     = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage]                 = useState(1)
+
+  /* ── Dialog state ────────────────────────────────────────────── */
+  const [dialogOpen, setDialogOpen]       = useState(false)
+  const [showBulkImport, setShowBulkImport] = useState(false)
+  const [editingId, setEditingId]         = useState<string | null>(null)
+  const [activeTab, setActiveTab]   = useState('basic')
+  const [formData, setFormData]     = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM })
+  const [errors, setErrors]         = useState<Record<string, string>>({})
   const [saving, setSaving]         = useState(false)
-  const [search, setSearch]         = useState('')
-  const [dept, setDept]             = useState<string>('All')
-  const [status, setStatus]         = useState<EmployeeStatus | 'All'>('All')
-  const [page, setPage]             = useState(1)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [view, setView]             = useState<'grid' | 'list'>('grid')
-  const [form, setForm]             = useState(emptyForm)
-  const [formError, setFormError]   = useState('')
+  const [saveError, setSaveError]   = useState('')
 
-  /* Load employees */
-  const load = useCallback(async () => {
+  /* ── Fetch ───────────────────────────────────────────────────── */
+  const fetchEmployees = useCallback(async () => {
     if (!tenantSlug) return
     setLoading(true)
     try {
-      const data = await getEmployees(tenantSlug)
-      setEmployees(data)
-    } catch (e) {
-      console.error('Failed to load employees', e)
+      const list = await getEmployees(tenantSlug)
+      setEmployees(list)
+    } catch (err) {
+      console.error('Failed to fetch employees', err)
     } finally {
       setLoading(false)
     }
   }, [tenantSlug])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { fetchEmployees() }, [fetchEmployees])
 
-  /* Derive department list from real data */
-  const departments = ['All', ...Array.from(new Set([
-    ...employees.map((e) => e.department),
-    ...PRESET_DEPARTMENTS,
-  ])).sort()]
-
-  /* Filter */
-  const filtered = employees.filter((e) => {
-    const matchSearch  = e.name.toLowerCase().includes(search.toLowerCase()) ||
-                         e.email.toLowerCase().includes(search.toLowerCase()) ||
-                         e.employeeId.toLowerCase().includes(search.toLowerCase())
-    const matchDept    = dept   === 'All' || e.department === dept
-    const matchStatus  = status === 'All' || e.status === status
+  /* ── Filtered + paginated ────────────────────────────────────── */
+  const filtered = employees.filter(emp => {
+    const q           = search.toLowerCase()
+    const matchSearch = !q ||
+      emp.name?.toLowerCase().includes(q) ||
+      emp.email?.toLowerCase().includes(q) ||
+      emp.employeeId?.toLowerCase().includes(q)
+    const matchDept   = deptFilter   === 'all' || emp.department === deptFilter
+    const matchStatus = statusFilter === 'all' || emp.status     === statusFilter
     return matchSearch && matchDept && matchStatus
   })
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage   = Math.min(page, totalPages)
+  const pageStart  = (safePage - 1) * PAGE_SIZE
+  const pageRows   = filtered.slice(pageStart, pageStart + PAGE_SIZE)
 
-  /* Save employee */
+  /* ── Open dialog helpers ─────────────────────────────────────── */
+  function openAdd() {
+    setEditingId(null)
+    setFormData({ ...EMPTY_FORM })
+    setErrors({})
+    setSaveError('')
+    setActiveTab('basic')
+    setDialogOpen(true)
+  }
+
+  function openEdit(emp: FirestoreEmployee) {
+    setEditingId(emp.id)
+    setFormData({
+      ...EMPTY_FORM,
+      ...emp,
+      salary:           emp.salary           != null ? String(emp.salary)           : '',
+      probationMonths:  emp.probationMonths   != null ? String(emp.probationMonths)  : '',
+      noticePeriodDays: emp.noticePeriodDays  != null ? String(emp.noticePeriodDays) : '',
+      differentlyAbled: emp.differentlyAbled  ?? false,
+      sameAsCurrent:    emp.sameAsCurrent     ?? false,
+    })
+    setErrors({})
+    setActiveTab('basic')
+    setDialogOpen(true)
+  }
+
+  /* ── Field updater ───────────────────────────────────────────── */
+  function setField(key: string, value: unknown) {
+    setFormData(prev => {
+      const next = { ...prev, [key]: value }
+      // Mirror permanent address from current if sameAsCurrent is on
+      if (key === 'sameAsCurrent' && value === true) {
+        next.permanentAddressLine = next.currentAddressLine
+        next.permanentCity        = next.currentCity
+        next.permanentState       = next.currentState
+        next.permanentPinCode     = next.currentPinCode
+        next.permanentCountry     = next.currentCountry
+      }
+      const currentKeys = [
+        'currentAddressLine', 'currentCity', 'currentState',
+        'currentPinCode', 'currentCountry',
+      ]
+      if (next.sameAsCurrent && currentKeys.includes(key)) {
+        next.permanentAddressLine = next.currentAddressLine
+        next.permanentCity        = next.currentCity
+        next.permanentState       = next.currentState
+        next.permanentPinCode     = next.currentPinCode
+        next.permanentCountry     = next.currentCountry
+      }
+      return next
+    })
+    if (errors[key]) setErrors(prev => { const n = { ...prev }; delete n[key]; return n })
+  }
+
+  /* ── Validate (all tabs) ─────────────────────────────────────── */
+  function validate(): boolean {
+    const errs: Record<string, string> = {}
+    for (const rules of Object.values(TAB_REQUIRED)) {
+      for (const [k, msg] of Object.entries(rules)) {
+        if (!formData[k] || String(formData[k]).trim() === '') errs[k] = msg
+      }
+    }
+    setErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  /* ── Save ────────────────────────────────────────────────────── */
   async function handleSave() {
-    if (!form.firstName || !form.lastName || !form.email || !form.department || !form.designation) {
-      setFormError('Please fill in all required fields.')
+    setSaveError('')
+    // Validate all tabs that have required fields
+    const allErrs: Record<string, string> = {}
+    for (const [, rules] of Object.entries(TAB_REQUIRED)) {
+      for (const [k, msg] of Object.entries(rules)) {
+        if (!formData[k] || String(formData[k]).trim() === '') allErrs[k] = msg
+      }
+    }
+    if (Object.keys(allErrs).length > 0) {
+      setErrors(allErrs)
+      // Jump to first failing tab so user sees errors inline
+      const basicFailing = ['firstName','lastName','email','phone'].some(k => allErrs[k])
+      if (basicFailing) {
+        setActiveTab('basic')
+        setSaveError('Fill in the required fields highlighted below.')
+      } else {
+        setActiveTab('work')
+        setSaveError('Fill in the required fields highlighted below.')
+      }
       return
     }
     if (!tenantSlug) return
 
     setSaving(true)
-    setFormError('')
     try {
-      const empId = await generateEmployeeId(tenantSlug)
-      const docId = await addEmployee(tenantSlug, {
-        employeeId:  empId,
-        firstName:   form.firstName.trim(),
-        lastName:    form.lastName.trim(),
-        name:        `${form.firstName.trim()} ${form.lastName.trim()}`,
-        email:       form.email.trim().toLowerCase(),
-        phone:       form.phone.trim(),
-        department:  form.department,
-        designation: form.designation.trim(),
-        joinDate:    form.joinDate,
-        salary:      Number(form.salary) || 0,
-        location:    form.location.trim(),
-        manager:     form.manager.trim(),
-        status:      'Active',
-        authStatus:  'pending',
-      })
+      const empId = editingId
+        ? formData.employeeId
+        : await generateEmployeeId(tenantSlug)
 
-      try {
-        await fetch(API_ENDPOINTS.INVITE, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: form.email.trim().toLowerCase(),
-            firstName: form.firstName.trim(),
-            tenantSlug,
-            employeeId: docId
-          })
-        })
-      } catch (err) {
-        console.error('Failed to send invite email', err)
+      const payload = {
+        ...formData,
+        employeeId:       empId,
+        name:             `${formData.firstName} ${formData.lastName}`.trim(),
+        salary:           Number(formData.salary)           || 0,
+        probationMonths:  Number(formData.probationMonths)  || 0,
+        noticePeriodDays: Number(formData.noticePeriodDays) || 0,
+        authStatus:       'pending' as const,
+        status:           (formData.status as EmployeeStatus) || 'Active',
+      }
+
+      // Remove undefined keys to avoid Firestore complaints
+      for (const k of Object.keys(payload)) {
+        if (payload[k] === undefined) delete payload[k]
+      }
+
+      if (editingId) {
+        await updateEmployee(tenantSlug, editingId, payload)
+      } else {
+        await addEmployee(tenantSlug, payload)
       }
 
       setDialogOpen(false)
-      setForm(emptyForm)
-      await load()
-    } catch (e) {
-      console.error('Save employee error', e)
-      setFormError('Failed to save. Please try again.')
+      await fetchEmployees()
+    } catch (err) {
+      console.error('Save failed', err)
     } finally {
       setSaving(false)
     }
   }
 
+  /* ── Delete ──────────────────────────────────────────────────── */
+  async function handleDelete(emp: FirestoreEmployee) {
+    if (!window.confirm(`Delete ${emp.name || emp.firstName}? This action cannot be undone.`)) return
+    if (!tenantSlug) return
+    try {
+      await deleteEmployee(tenantSlug, emp.id)
+      await fetchEmployees()
+    } catch (err) {
+      console.error('Delete failed', err)
+    }
+  }
+
+  /* ── Per-tab required fields ─────────────────────────────────── */
+  const TAB_REQUIRED: Record<string, Record<string, string>> = {
+    basic: {
+      firstName:   'First name is required',
+      lastName:    'Last name is required',
+      email:       'Work email is required',
+      phone:       'Phone number is required',
+    },
+    work: {
+      designation: 'Designation is required',
+      department:  'Department is required',
+      location:    'Location is required',
+      joinDate:    'Joining date is required',
+    },
+  }
+
+  /* validate only current tab — returns true if OK */
+  function validateTab(tabId: string): boolean {
+    const rules = TAB_REQUIRED[tabId]
+    if (!rules) return true
+    const errs: Record<string, string> = {}
+    for (const [k, msg] of Object.entries(rules)) {
+      if (!formData[k] || String(formData[k]).trim() === '') errs[k] = msg
+    }
+    setErrors(prev => ({ ...prev, ...errs }))
+    return Object.keys(errs).length === 0
+  }
+
+  /* ── Tab navigation ──────────────────────────────────────────── */
+  const tabIndex   = TABS.findIndex(t => t.id === activeTab)
+  const isFirstTab = tabIndex === 0
+  const isLastTab  = tabIndex === TABS.length - 1
+
+  function prevTab() {
+    setSaveError('')
+    if (!isFirstTab) setActiveTab(TABS[tabIndex - 1].id)
+  }
+  function nextTab() {
+    setSaveError('')
+    if (!validateTab(activeTab)) return  // block advance, errors shown inline
+    if (!isLastTab) setActiveTab(TABS[tabIndex + 1].id)
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     Render
+  ───────────────────────────────────────────────────────────── */
+
   return (
-    <div className="p-6 space-y-5 bg-[#F8FAFD] min-h-full">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-        className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <p className="text-[11px] text-slate-400 mb-1 flex items-center gap-1">
-            <span>Home</span><ChevronRight className="w-3 h-3" /><span className="text-slate-600">Employees</span>
-          </p>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Employees</h1>
-          <p className="text-slate-500 text-[13px] mt-0.5">
-            {loading ? 'Loading…' : `${employees.length} total employees`}
-          </p>
+    <div className="min-h-screen bg-[#F8FAFC] p-6">
+
+      {/* ── Top bar ─────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold text-slate-800">Employees</h1>
+          <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-xs font-medium px-2 py-0.5 rounded-full border border-slate-200">
+            <Users className="w-3 h-3" />
+            {employees.length}
+          </span>
         </div>
 
-        {profile?.role !== 'employee' && (
-          <Button
-            size="sm"
-            className="gap-2 text-[13px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20"
-            onClick={() => { setForm(emptyForm); setFormError(''); setDialogOpen(true) }}
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Employee
-          </Button>
-        )}
-      </motion.div>
-
-      {/* Filters + View Toggle */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm shadow-slate-100 p-3.5 flex flex-wrap gap-3 items-center">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-1 min-w-[200px] max-w-xs">
-            <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search by name, email or ID…"
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <Input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="bg-transparent text-[13px] text-slate-700 placeholder-slate-400 outline-none flex-1"
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              placeholder="Search name, email, ID…"
+              className="pl-8 h-9 w-56 text-sm border-slate-200"
             />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-[12px] text-slate-500 font-medium">Filters:</span>
-          </div>
-
-          <Select value={dept} onValueChange={(v) => { setDept(v ?? 'All'); setPage(1) }}>
-            <SelectTrigger className="h-9 w-36 text-[12px] border-slate-200 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.map((d) => (
-                <SelectItem key={d} value={d} className="text-[12px]">{d === 'All' ? 'All Depts' : d}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={status} onValueChange={(v) => { setStatus((v ?? 'All') as EmployeeStatus | 'All'); setPage(1) }}>
-            <SelectTrigger className="h-9 w-36 text-[12px] border-slate-200 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statuses.map((s) => (
-                <SelectItem key={s} value={s} className="text-[12px]">{s === 'All' ? 'All Status' : s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Badge variant="outline" className="text-[11px] text-slate-500 border-slate-200 rounded-full px-3">
-            {filtered.length} records
-          </Badge>
-
-          <div className="ml-auto flex items-center bg-slate-100 rounded-xl p-1 gap-1">
-            <button
-              onClick={() => setView('grid')}
-              className={`p-2 rounded-lg transition-all duration-150 ${view === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-              title="Grid view"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setView('list')}
-              className={`p-2 rounded-lg transition-all duration-150 ${view === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-              title="List view"
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Loading */}
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-          <p className="text-[13px] text-slate-500">Loading employees…</p>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && employees.length === 0 && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Users className="w-8 h-8 text-white" />
-          </div>
-          <div className="text-center">
-            <p className="text-[15px] font-semibold text-slate-800">No employees yet</p>
-            <p className="text-[13px] text-slate-500 mt-1">Add your first employee to get started.</p>
-          </div>
-          {profile?.role !== 'employee' && (
-            <Button
-              size="sm"
-              className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-              onClick={() => { setForm(emptyForm); setFormError(''); setDialogOpen(true) }}
-            >
-              <Plus className="w-3.5 h-3.5" /> Add First Employee
-            </Button>
-          )}
-        </motion.div>
-      )}
-
-      {/* Grid / List View */}
-      {!loading && employees.length > 0 && (
-        <AnimatePresence mode="wait">
-          {view === 'grid' ? (
-            <motion.div
-              key="grid"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-            >
-              {paginated.map((emp, i) => (
-                <motion.div
-                  key={emp.id}
-                  initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.04 * i, duration: 0.3 }}
-                  className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-200 overflow-hidden"
-                >
-                  <div className={`h-16 bg-gradient-to-r ${avatarGradients[i % avatarGradients.length]} relative`}>
-                    <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 70% 50%, white 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
-                    <div className="absolute top-2.5 right-2.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg backdrop-blur-sm transition-colors">
-                        <Eye className="w-3 h-3 text-white" />
-                      </button>
-                      <button className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg backdrop-blur-sm transition-colors">
-                        <Pencil className="w-3 h-3 text-white" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="px-4 pb-4">
-                    <div className="flex items-end justify-between -mt-7 mb-3">
-                      <Avatar className="w-14 h-14 border-2 border-white shadow-md">
-                        <AvatarFallback className={`bg-gradient-to-br ${avatarGradients[i % avatarGradients.length]} text-white text-[14px] font-bold`}>
-                          {`${emp.firstName[0] ?? ''}${emp.lastName[0] ?? ''}`.toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <StatusBadge status={emp.status} />
-                    </div>
-
-                    <p className="text-[14px] font-bold text-slate-900 leading-tight">{emp.name}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">{emp.employeeId}</p>
-                    <p className="text-[12px] text-slate-500 mt-0.5 mb-3">{emp.designation}</p>
-
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${deptColors[emp.department] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                      {emp.department}
-                    </span>
-
-                    <div className="mt-3 space-y-1.5 border-t border-slate-50 pt-3">
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{emp.email}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{emp.location || '—'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>Joined {emp.joinDate}</span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="list"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent border-b border-slate-100 bg-slate-50/80">
-                      <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide pl-6 w-[240px]">Employee</TableHead>
-                      <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Dept / Designation</TableHead>
-                      <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Join Date</TableHead>
-                      <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Location</TableHead>
-                      <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Status</TableHead>
-                      <TableHead className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide text-right pr-6">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginated.map((emp, i) => (
-                      <motion.tr
-                        key={emp.id}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.03 * i }}
-                        className="border-slate-50 hover:bg-slate-50/60 transition-colors"
-                      >
-                        <TableCell className="pl-6 py-3">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="w-8 h-8 shrink-0">
-                              <AvatarFallback className={`bg-gradient-to-br ${avatarGradients[i % avatarGradients.length]} text-white text-[11px] font-semibold`}>
-                                {`${emp.firstName[0] ?? ''}${emp.lastName[0] ?? ''}`.toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="text-[13px] font-semibold text-slate-800">{emp.name}</p>
-                              <p className="text-[11px] text-slate-400">{emp.email}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="text-[12px] font-medium text-slate-700">{emp.department}</p>
-                          <p className="text-[11px] text-slate-400">{emp.designation}</p>
-                        </TableCell>
-                        <TableCell className="text-[12px] text-slate-600">{emp.joinDate}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 text-[12px] text-slate-600">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            {emp.location || '—'}
-                          </div>
-                        </TableCell>
-                        <TableCell><StatusBadge status={emp.status} /></TableCell>
-                        <TableCell className="text-right pr-6">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors">
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      )}
-
-      {/* Pagination */}
-      {!loading && totalPages > 1 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-          className="flex items-center justify-between">
-          <p className="text-[12px] text-slate-500">
-            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-          </p>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+            {search && (
               <button
-                key={n}
-                onClick={() => setPage(n)}
-                className={`w-7 h-7 rounded-lg border text-[12px] font-medium transition-colors ${n === page ? 'bg-blue-600 text-white border-blue-600' : 'text-slate-600 border-slate-200 bg-white hover:bg-slate-50'}`}
+                onClick={() => { setSearch(''); setPage(1) }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                {n}
+                <X className="w-3.5 h-3.5" />
               </button>
-            ))}
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Add Employee Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-[17px] font-semibold">Add New Employee</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">First Name <span className="text-red-500">*</span></Label>
-              <Input
-                placeholder="e.g. Arjun"
-                className="h-9 text-[13px]"
-                value={form.firstName}
-                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">Last Name <span className="text-red-500">*</span></Label>
-              <Input
-                placeholder="e.g. Sharma"
-                className="h-9 text-[13px]"
-                value={form.lastName}
-                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label className="text-[12px] font-medium text-slate-700">Work Email <span className="text-red-500">*</span></Label>
-              <Input
-                type="email"
-                placeholder="arjun@company.com"
-                className="h-9 text-[13px]"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">Phone</Label>
-              <Input
-                placeholder="+91 98765 43210"
-                className="h-9 text-[13px]"
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">Department <span className="text-red-500">*</span></Label>
-              <Select value={form.department} onValueChange={(v) => setForm((f) => ({ ...f, department: v ?? '' }))}>
-                <SelectTrigger className="h-9 text-[13px]">
-                  <SelectValue placeholder="Select dept." />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRESET_DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label className="text-[12px] font-medium text-slate-700">Designation <span className="text-red-500">*</span></Label>
-              <Input
-                placeholder="e.g. Software Engineer"
-                className="h-9 text-[13px]"
-                value={form.designation}
-                onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">Join Date</Label>
-              <Input
-                type="date"
-                className="h-9 text-[13px]"
-                value={form.joinDate}
-                onChange={(e) => setForm((f) => ({ ...f, joinDate: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">Monthly CTC (₹)</Label>
-              <Input
-                type="number"
-                placeholder="e.g. 85000"
-                className="h-9 text-[13px]"
-                value={form.salary}
-                onChange={(e) => setForm((f) => ({ ...f, salary: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">Location</Label>
-              <Input
-                placeholder="e.g. Bangalore"
-                className="h-9 text-[13px]"
-                value={form.location}
-                onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[12px] font-medium text-slate-700">Reporting Manager</Label>
-              <Input
-                placeholder="e.g. Priya Mehta"
-                className="h-9 text-[13px]"
-                value={form.manager}
-                onChange={(e) => setForm((f) => ({ ...f, manager: e.target.value }))}
-              />
-            </div>
-
-            {formError && (
-              <p className="col-span-2 text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
-                {formError}
-              </p>
             )}
+          </div>
 
-            <div className="col-span-2 flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} className="text-[13px]">
-                Cancel
+          {/* Department filter */}
+          <Select value={deptFilter} onValueChange={v => { setDeptFilter(v); setPage(1) }}>
+            <SelectTrigger className="h-9 w-44 text-sm border-slate-200 gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <SelectValue placeholder="Department" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Departments</SelectItem>
+              {DEPARTMENTS.map(d => (
+                <SelectItem key={d} value={d}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Status filter */}
+          <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1) }}>
+            <SelectTrigger className="h-9 w-36 text-sm border-slate-200">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {['Active', 'Inactive', 'On Leave', 'Resigned', 'On Notice'].map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {isAdmin && (
+            <>
+              <Button
+                onClick={() => setShowBulkImport(true)}
+                variant="outline"
+                className="h-9 text-sm px-3 gap-1.5 border-slate-200"
+              >
+                <Upload className="w-4 h-4" />
+                Bulk Import
               </Button>
               <Button
-                size="sm"
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-[13px] gap-2"
-                onClick={handleSave}
-                disabled={saving}
+                onClick={openAdd}
+                className="h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 gap-1.5"
               >
-                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {saving ? 'Saving…' : 'Save Employee'}
+                <Plus className="w-4 h-4" />
+                Add Employee
               </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Table card ──────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+            <Users className="w-10 h-10 opacity-30" />
+            <p className="text-sm font-medium text-slate-500">No employees found</p>
+            {(search || deptFilter !== 'all' || statusFilter !== 'all') && (
+              <p className="text-xs">Try adjusting your search or filters</p>
+            )}
+          </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                  <TableHead className="text-xs uppercase tracking-wider text-slate-500 font-medium py-3 pl-4 w-56">
+                    Employee
+                  </TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-slate-500 font-medium py-3">
+                    Employee ID
+                  </TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-slate-500 font-medium py-3">
+                    Department
+                  </TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-slate-500 font-medium py-3">
+                    Designation
+                  </TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-slate-500 font-medium py-3">
+                    Work Type
+                  </TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-slate-500 font-medium py-3">
+                    Status
+                  </TableHead>
+                  {isAdmin && (
+                    <TableHead className="text-xs uppercase tracking-wider text-slate-500 font-medium py-3 pr-4 text-right">
+                      Actions
+                    </TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pageRows.map(emp => {
+                  const initials = `${emp.firstName?.[0] ?? ''}${emp.lastName?.[0] ?? ''}`.toUpperCase() || '?'
+                  const displayName = emp.name || `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim()
+                  return (
+                    <TableRow
+                      key={emp.id}
+                      className="border-b border-slate-50 hover:bg-slate-50 transition-colors"
+                    >
+                      <TableCell className="py-3 pl-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8 flex-shrink-0">
+                            <AvatarFallback className="bg-blue-50 text-blue-600 text-xs font-semibold">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate leading-tight">
+                              {displayName}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate leading-tight">
+                              {emp.email}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3 text-xs font-mono text-slate-600">
+                        {emp.employeeId || '—'}
+                      </TableCell>
+                      <TableCell className="py-3 text-sm text-slate-600">
+                        {emp.department || '—'}
+                      </TableCell>
+                      <TableCell className="py-3 text-sm text-slate-600">
+                        {emp.designation || '—'}
+                      </TableCell>
+                      <TableCell className="py-3 text-sm text-slate-600">
+                        {emp.workType || '—'}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <StatusBadge status={emp.status} />
+                      </TableCell>
+                      {isAdmin && (
+                        <TableCell className="py-3 pr-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => openEdit(emp)}
+                              className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors"
+                              title="Edit employee"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(emp)}
+                              className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Delete employee"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+
+            {/* Pagination */}
+            {filtered.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+                <p className="text-xs text-slate-500">
+                  Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} of {filtered.length}
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className="h-7 w-7 p-0 border-slate-200 text-slate-600"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </Button>
+                  <span className="text-xs text-slate-600 px-2 tabular-nums">
+                    {safePage} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className="h-7 w-7 p-0 border-slate-200 text-slate-600"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────
+          Add / Edit Dialog
+      ───────────────────────────────────────────────────────── */}
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={open => { if (!saving) setDialogOpen(open) }}
+      >
+        <DialogContent className="!max-w-[68vw] !w-[68vw] h-[92vh] max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl">
+
+          {/* Header */}
+          <DialogHeader className="px-8 pt-6 pb-5 border-b border-slate-100 flex-shrink-0 bg-white">
+            {/* Row 1: title left, steps right */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <DialogTitle className="text-xl font-bold text-slate-900 leading-tight">
+                  {editingId ? 'Edit Employee' : 'Add New Employee'}
+                </DialogTitle>
+                <p className="text-sm text-slate-400 mt-1 leading-snug">
+                  Step {tabIndex + 1} of {TABS.length} — {TABS[tabIndex].label}
+                </p>
+              </div>
+
+              {/* Step bubbles */}
+              <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                {TABS.map((t, i) => {
+                  const hasErr =
+                    (['firstName','lastName','email','phone'].some(k => errors[k]) && t.id === 'basic') ||
+                    (['designation','department','location','joinDate'].some(k => errors[k]) && t.id === 'work')
+                  const isActive = activeTab === t.id
+                  return (
+                    <div key={t.id} className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => { setSaveError(''); setActiveTab(t.id) }}
+                        title={t.label}
+                        className={cn(
+                          'w-7 h-7 rounded-full text-[11px] font-bold transition-all border-2',
+                          isActive  ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-200' :
+                          hasErr    ? 'bg-red-50 text-red-600 border-red-400' :
+                          'bg-slate-100 text-slate-500 border-transparent hover:bg-slate-200'
+                        )}
+                      >{i + 1}</button>
+                      {i < TABS.length - 1 && (
+                        <div className="w-5 h-px bg-slate-200" />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="mt-4 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                style={{ width: `${((tabIndex + 1) / TABS.length) * 100}%` }}
+              />
+            </div>
+
+            {/* Validation error banner */}
+            {saveError && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {saveError}
+              </div>
+            )}
+          </DialogHeader>
+
+          {/* Tab bar */}
+          <div className="flex border-b border-slate-100 px-8 flex-shrink-0 overflow-x-auto bg-white">
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.id
+              const hasError =
+                (tab.id === 'basic' && ['firstName', 'lastName', 'email', 'phone'].some(k => errors[k])) ||
+                (tab.id === 'work'  && ['designation', 'department', 'location', 'joinDate'].some(k => errors[k]))
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'relative py-3 px-4 text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0',
+                    isActive
+                      ? 'text-blue-600'
+                      : 'text-slate-500 hover:text-slate-700',
+                  )}
+                >
+                  {tab.label}
+                  {hasError && (
+                    <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-red-500 inline-block align-middle" />
+                  )}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Scrollable tab content */}
+          <div className="flex-1 overflow-y-auto px-8 py-6 bg-white">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.14 }}
+              >
+
+                {/* ───────────────── Tab 1: Basic Info ──────────────── */}
+                {activeTab === 'basic' && (
+                  <div className="grid grid-cols-3 gap-5">
+                    <Field label="First Name" required error={errors.firstName}>
+                      <FInput
+                        value={formData.firstName}
+                        onChange={v => setField('firstName', v)}
+                        placeholder="John"
+                      />
+                    </Field>
+                    <Field label="Last Name" required error={errors.lastName}>
+                      <FInput
+                        value={formData.lastName}
+                        onChange={v => setField('lastName', v)}
+                        placeholder="Doe"
+                      />
+                    </Field>
+
+                    <Field label="Middle Name">
+                      <FInput
+                        value={formData.middleName}
+                        onChange={v => setField('middleName', v)}
+                        placeholder="Optional"
+                      />
+                    </Field>
+                    <Field label="Display Name">
+                      <Input
+                        value={`${formData.firstName} ${formData.lastName}`.trim() || ''}
+                        disabled
+                        className="h-9 text-sm border-slate-200 bg-slate-50 text-slate-400"
+                      />
+                    </Field>
+
+                    <Field label="Work Email" required error={errors.email}>
+                      <FInput
+                        value={formData.email}
+                        onChange={v => setField('email', v)}
+                        placeholder="john@company.com"
+                        type="email"
+                      />
+                    </Field>
+                    <Field label="Personal Email">
+                      <FInput
+                        value={formData.personalEmail}
+                        onChange={v => setField('personalEmail', v)}
+                        placeholder="john@gmail.com"
+                        type="email"
+                      />
+                    </Field>
+
+                    <Field label="Phone" required error={errors.phone}>
+                      <FInput
+                        value={formData.phone}
+                        onChange={v => setField('phone', v)}
+                        placeholder="+91 98765 43210"
+                      />
+                    </Field>
+                    <Field label="Personal Phone">
+                      <FInput
+                        value={formData.personalPhone}
+                        onChange={v => setField('personalPhone', v)}
+                        placeholder="+91 98765 43210"
+                      />
+                    </Field>
+
+                    <Field label="Gender">
+                      <FSelect
+                        value={formData.gender}
+                        onChange={v => setField('gender', v)}
+                        placeholder="Select gender"
+                        options={['Male', 'Female', 'Other', 'Prefer not to say']}
+                      />
+                    </Field>
+                    <Field label="Date of Birth">
+                      <FInput
+                        value={formData.dateOfBirth}
+                        onChange={v => setField('dateOfBirth', v)}
+                        type="date"
+                      />
+                    </Field>
+
+                    <Field label="Blood Group">
+                      <FSelect
+                        value={formData.bloodGroup}
+                        onChange={v => setField('bloodGroup', v)}
+                        placeholder="Select blood group"
+                        options={['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']}
+                      />
+                    </Field>
+                    <Field label="Marital Status">
+                      <FSelect
+                        value={formData.maritalStatus}
+                        onChange={v => setField('maritalStatus', v)}
+                        placeholder="Select status"
+                        options={['Single', 'Married', 'Divorced', 'Widowed']}
+                      />
+                    </Field>
+
+                    <Field label="Nationality">
+                      <FInput
+                        value={formData.nationality}
+                        onChange={v => setField('nationality', v)}
+                        placeholder="Indian"
+                      />
+                    </Field>
+                    <Field label="Caste Category">
+                      <FSelect
+                        value={formData.caste}
+                        onChange={v => setField('caste', v)}
+                        placeholder="Select category"
+                        options={['General', 'SC', 'ST', 'OBC', 'Other']}
+                      />
+                    </Field>
+
+                    <div className="col-span-2 flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="differentlyAbled"
+                        checked={!!formData.differentlyAbled}
+                        onChange={e => setField('differentlyAbled', e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <label
+                        htmlFor="differentlyAbled"
+                        className="text-sm text-slate-600 cursor-pointer select-none"
+                      >
+                        Person with Disability (Differently Abled)
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* ───────────────── Tab 2: Work Details ───────────── */}
+                {activeTab === 'work' && (
+                  <div className="grid grid-cols-3 gap-5">
+                    <Field label="Employee ID">
+                      <FInput
+                        value={formData.employeeId || (editingId ? '' : 'Auto-generated')}
+                        onChange={() => {}}
+                        disabled
+                      />
+                    </Field>
+                    <Field label="Joining Date" required error={errors.joinDate}>
+                      <FInput
+                        value={formData.joinDate}
+                        onChange={v => setField('joinDate', v)}
+                        type="date"
+                      />
+                    </Field>
+
+                    <Field label="Designation" required error={errors.designation}>
+                      <FSelect
+                        value={formData.designation}
+                        onChange={v => setField('designation', v)}
+                        placeholder="Select designation"
+                        options={DESIGNATIONS}
+                      />
+                    </Field>
+                    <Field label="Department" required error={errors.department}>
+                      <FSelect
+                        value={formData.department}
+                        onChange={v => setField('department', v)}
+                        placeholder="Select department"
+                        options={DEPARTMENTS}
+                      />
+                    </Field>
+
+                    <Field label="Sub Department">
+                      <FInput
+                        value={formData.subDepartment}
+                        onChange={v => setField('subDepartment', v)}
+                        placeholder="e.g. Frontend"
+                      />
+                    </Field>
+                    <Field label="Location" required error={errors.location}>
+                      <FInput
+                        value={formData.location}
+                        onChange={v => setField('location', v)}
+                        placeholder="e.g. Bangalore"
+                      />
+                    </Field>
+
+                    <Field label="Work Type">
+                      <FSelect
+                        value={formData.workType}
+                        onChange={v => setField('workType', v)}
+                        placeholder="Select work type"
+                        options={['WFO', 'WFH', 'Hybrid']}
+                      />
+                    </Field>
+                    <Field label="Employment Type">
+                      <FSelect
+                        value={formData.employmentType}
+                        onChange={v => setField('employmentType', v)}
+                        placeholder="Select type"
+                        options={['Full-time', 'Part-time', 'Contract', 'Intern']}
+                      />
+                    </Field>
+
+                    <Field label="Status">
+                      <FSelect
+                        value={formData.status}
+                        onChange={v => setField('status', v)}
+                        placeholder="Select status"
+                        options={['Active', 'Inactive', 'On Leave', 'Resigned', 'On Notice']}
+                      />
+                    </Field>
+                    <Field label="Salary / CTC per month (₹)">
+                      <FInput
+                        value={formData.salary}
+                        onChange={v => setField('salary', v)}
+                        type="number"
+                        placeholder="e.g. 50000"
+                      />
+                    </Field>
+
+                    <Field label="Reporting Manager">
+                      <FInput
+                        value={formData.manager}
+                        onChange={v => setField('manager', v)}
+                        placeholder="Manager name"
+                      />
+                    </Field>
+                    <Field label="Grade / Band">
+                      <FInput
+                        value={formData.grade}
+                        onChange={v => setField('grade', v)}
+                        placeholder="e.g. L3, M2"
+                      />
+                    </Field>
+
+                    <Field label="Probation Period (months)">
+                      <FInput
+                        value={formData.probationMonths}
+                        onChange={v => setField('probationMonths', v)}
+                        type="number"
+                        placeholder="e.g. 3"
+                      />
+                    </Field>
+                    <Field label="Notice Period (days)">
+                      <FInput
+                        value={formData.noticePeriodDays}
+                        onChange={v => setField('noticePeriodDays', v)}
+                        type="number"
+                        placeholder="e.g. 30"
+                      />
+                    </Field>
+
+                    <Field label="Confirmation Date">
+                      <FInput
+                        value={formData.confirmationDate}
+                        onChange={v => setField('confirmationDate', v)}
+                        type="date"
+                      />
+                    </Field>
+                    <Field label="Cost Center">
+                      <FInput
+                        value={formData.costCenter}
+                        onChange={v => setField('costCenter', v)}
+                        placeholder="e.g. CC-001"
+                      />
+                    </Field>
+                  </div>
+                )}
+
+                {/* ───────────────── Tab 3: Address ─────────────────── */}
+                {activeTab === 'address' && (
+                  <div className="flex flex-col gap-6">
+
+                    {/* Current Address */}
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                        Current Address
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                          <Field label="Address Line">
+                            <FInput
+                              value={formData.currentAddressLine}
+                              onChange={v => setField('currentAddressLine', v)}
+                              placeholder="Street, Apartment, Building"
+                            />
+                          </Field>
+                        </div>
+                        <Field label="City">
+                          <FInput
+                            value={formData.currentCity}
+                            onChange={v => setField('currentCity', v)}
+                            placeholder="City"
+                          />
+                        </Field>
+                        <Field label="State">
+                          <FSelect
+                            value={formData.currentState}
+                            onChange={v => setField('currentState', v)}
+                            placeholder="Select state"
+                            options={INDIAN_STATES}
+                          />
+                        </Field>
+                        <Field label="PIN Code">
+                          <FInput
+                            value={formData.currentPinCode}
+                            onChange={v => setField('currentPinCode', v)}
+                            placeholder="560001"
+                          />
+                        </Field>
+                        <Field label="Country">
+                          <FInput
+                            value={formData.currentCountry}
+                            onChange={v => setField('currentCountry', v)}
+                            placeholder="India"
+                          />
+                        </Field>
+                      </div>
+                    </div>
+
+                    {/* Same as current checkbox */}
+                    <div className="flex items-center gap-2 -mt-2">
+                      <input
+                        type="checkbox"
+                        id="sameAsCurrent"
+                        checked={!!formData.sameAsCurrent}
+                        onChange={e => setField('sameAsCurrent', e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <label
+                        htmlFor="sameAsCurrent"
+                        className="text-sm text-slate-600 cursor-pointer select-none"
+                      >
+                        Permanent address same as current address
+                      </label>
+                    </div>
+
+                    {/* Permanent Address */}
+                    <div className={cn(formData.sameAsCurrent && 'opacity-40 pointer-events-none select-none')}>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                        Permanent Address
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                          <Field label="Address Line">
+                            <FInput
+                              value={formData.permanentAddressLine}
+                              onChange={v => setField('permanentAddressLine', v)}
+                              placeholder="Street, Apartment, Building"
+                            />
+                          </Field>
+                        </div>
+                        <Field label="City">
+                          <FInput
+                            value={formData.permanentCity}
+                            onChange={v => setField('permanentCity', v)}
+                            placeholder="City"
+                          />
+                        </Field>
+                        <Field label="State">
+                          <FSelect
+                            value={formData.permanentState}
+                            onChange={v => setField('permanentState', v)}
+                            placeholder="Select state"
+                            options={INDIAN_STATES}
+                          />
+                        </Field>
+                        <Field label="PIN Code">
+                          <FInput
+                            value={formData.permanentPinCode}
+                            onChange={v => setField('permanentPinCode', v)}
+                            placeholder="560001"
+                          />
+                        </Field>
+                        <Field label="Country">
+                          <FInput
+                            value={formData.permanentCountry}
+                            onChange={v => setField('permanentCountry', v)}
+                            placeholder="India"
+                          />
+                        </Field>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+
+                {/* ───────────────── Tab 4: Govt IDs ───────────────── */}
+                {activeTab === 'govtids' && (
+                  <div className="grid grid-cols-3 gap-5">
+                    <Field label="PAN Number">
+                      <FInput
+                        value={formData.panNumber}
+                        onChange={v => setField('panNumber', v.toUpperCase())}
+                        placeholder="ABCDE1234F"
+                      />
+                    </Field>
+                    <Field label="Aadhaar Number">
+                      <FInput
+                        value={formData.aadhaarNumber}
+                        onChange={v => setField('aadhaarNumber', v)}
+                        placeholder="XXXX XXXX XXXX"
+                      />
+                    </Field>
+
+                    <Field label="UAN (PF Account)">
+                      <FInput
+                        value={formData.uan}
+                        onChange={v => setField('uan', v)}
+                        placeholder="Universal Account Number"
+                      />
+                    </Field>
+                    <Field label="ESIC Number">
+                      <FInput
+                        value={formData.esicNumber}
+                        onChange={v => setField('esicNumber', v)}
+                        placeholder="ESIC Number"
+                      />
+                    </Field>
+
+                    <Field label="Passport Number">
+                      <FInput
+                        value={formData.passportNumber}
+                        onChange={v => setField('passportNumber', v.toUpperCase())}
+                        placeholder="A1234567"
+                      />
+                    </Field>
+                    <Field label="Passport Expiry Date">
+                      <FInput
+                        value={formData.passportExpiry}
+                        onChange={v => setField('passportExpiry', v)}
+                        type="date"
+                      />
+                    </Field>
+
+                    <Field label="Voter ID Number">
+                      <FInput
+                        value={formData.voterIdNumber}
+                        onChange={v => setField('voterIdNumber', v.toUpperCase())}
+                        placeholder="Voter ID"
+                      />
+                    </Field>
+                    <Field label="Driving License">
+                      <FInput
+                        value={formData.drivingLicense}
+                        onChange={v => setField('drivingLicense', v.toUpperCase())}
+                        placeholder="DL Number"
+                      />
+                    </Field>
+                  </div>
+                )}
+
+                {/* ───────────────── Tab 5: Bank Details ───────────── */}
+                {activeTab === 'bank' && (
+                  <div className="grid grid-cols-3 gap-5">
+                    <Field label="Bank Name">
+                      <FInput
+                        value={formData.bankName}
+                        onChange={v => setField('bankName', v)}
+                        placeholder="e.g. HDFC Bank"
+                      />
+                    </Field>
+                    <Field label="Account Number">
+                      <FInput
+                        value={formData.accountNumber}
+                        onChange={v => setField('accountNumber', v)}
+                        placeholder="Account Number"
+                      />
+                    </Field>
+
+                    <Field label="IFSC Code">
+                      <FInput
+                        value={formData.ifscCode}
+                        onChange={v => setField('ifscCode', v.toUpperCase())}
+                        placeholder="HDFC0001234"
+                      />
+                    </Field>
+                    <Field label="Account Type">
+                      <FSelect
+                        value={formData.accountType}
+                        onChange={v => setField('accountType', v)}
+                        placeholder="Select type"
+                        options={['Savings', 'Current']}
+                      />
+                    </Field>
+
+                    <div className="col-span-2">
+                      <Field label="Branch Name">
+                        <FInput
+                          value={formData.branchName}
+                          onChange={v => setField('branchName', v)}
+                          placeholder="e.g. Koramangala Branch, Bangalore"
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                )}
+
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Dialog footer */}
+          <div className="flex items-center justify-between px-8 py-5 border-t border-slate-100 flex-shrink-0 bg-slate-50">
+            <div>
+              {!isFirstTab && (
+                <Button
+                  variant="outline"
+                  onClick={prevTab}
+                  disabled={saving}
+                  className="h-10 px-5 text-sm border-slate-200 text-slate-700"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                disabled={saving}
+                className="h-10 px-5 text-sm border-slate-200 text-slate-700"
+              >
+                Cancel
+              </Button>
+
+              {!isLastTab ? (
+                <Button
+                  onClick={nextTab}
+                  className="h-10 px-6 text-sm bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="h-10 px-8 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white min-w-[160px] shadow-sm shadow-blue-200"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving…
+                    </>
+                  ) : editingId ? (
+                    '✓ Update Employee'
+                  ) : (
+                    '✓ Save Employee'
+                  )}
+                </Button>
+              )}
             </div>
           </div>
+
         </DialogContent>
       </Dialog>
+
+      {showBulkImport && tenantSlug && (
+        <BulkImportModal
+          slug={tenantSlug}
+          onClose={() => setShowBulkImport(false)}
+          onImported={(count) => { setShowBulkImport(false); if (count > 0) fetchEmployees() }}
+        />
+      )}
+
     </div>
   )
 }

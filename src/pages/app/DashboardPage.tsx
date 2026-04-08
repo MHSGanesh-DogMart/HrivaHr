@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { getEmployees, type FirestoreEmployee } from '@/services/employeeService'
 import { getAttendanceByDate, todayString, type FirestoreAttendance } from '@/services/attendanceService'
@@ -21,30 +22,28 @@ import { getLeaveRequests, updateLeaveStatus, type FirestoreLeave } from '@/serv
 /* ── Helpers ───────────────────────────────────────────────────── */
 
 const fadeUp = (delay = 0) => ({
-  initial: { opacity: 0, y: 20 },
+  initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4, delay },
+  transition: { duration: 0.3, delay },
 })
 
-const avatarGradients = [
-  'from-violet-500 to-purple-600',
-  'from-blue-500 to-indigo-600',
-  'from-emerald-500 to-teal-600',
-  'from-amber-400 to-orange-500',
-  'from-rose-500 to-pink-600',
+const avatarColors = [
+  'bg-slate-100 text-slate-600',
+  'bg-blue-50 text-blue-600',
+  'bg-slate-200 text-slate-700',
 ]
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    Active:    'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    Inactive:  'bg-rose-50 text-rose-700 border border-rose-200',
-    'On Leave':'bg-amber-50 text-amber-700 border border-amber-200',
-    Pending:   'bg-amber-50 text-amber-700 border border-amber-200',
-    Approved:  'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    Rejected:  'bg-rose-50 text-rose-700 border border-rose-200',
+    Active:    'bg-emerald-50 text-emerald-700 border-emerald-100',
+    Inactive:  'bg-slate-100 text-slate-600 border-slate-200',
+    'On Leave':'bg-amber-50 text-amber-700 border-amber-100',
+    Pending:   'bg-amber-50 text-amber-700 border-amber-100',
+    Approved:  'bg-emerald-50 text-emerald-700 border-emerald-100',
+    Rejected:  'bg-red-50 text-red-700 border-red-100',
   }
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${map[status] ?? 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", map[status] ?? 'bg-slate-50 text-slate-600 border-slate-100')}>
       {status}
     </span>
   )
@@ -152,28 +151,32 @@ export default function DashboardPage() {
       value:    totalEmp.toString(),
       change:   `${activeEmp} active`,
       icon:     Users,
-      gradient: 'from-violet-500 to-purple-700',
+      color:    'text-blue-600',
+      bg:       'bg-blue-50/50 border-blue-100',
     },
     {
       label:    'Present Today',
       value:    presentToday.toString(),
       change:   activeEmp > 0 ? `${Math.round((presentToday / Math.max(activeEmp, 1)) * 100)}% attendance` : '—',
       icon:     Clock,
-      gradient: 'from-emerald-500 to-teal-600',
+      color:    'text-emerald-600',
+      bg:       'bg-emerald-50/50 border-emerald-100',
     },
     {
       label:    'On Leave',
       value:    onLeaveEmp.toString(),
-      change:   totalEmp > 0 ? `${Math.round((onLeaveEmp / Math.max(totalEmp, 1)) * 100)}% of workforce` : '—',
+      change:   totalEmp > 0 ? `${Math.round((onLeaveEmp / Math.max(totalEmp, 1)) * 100)}% workforce` : '—',
       icon:     Calendar,
-      gradient: 'from-amber-400 to-orange-500',
+      color:    'text-amber-600',
+      bg:       'bg-amber-50/50 border-amber-100',
     },
     {
       label:    'Pending Approvals',
       value:    pendingLeaves.toString(),
       change:   pendingLeaves > 0 ? `${Math.min(pendingLeaves, 3)} urgent` : 'All clear',
       icon:     CheckSquare,
-      gradient: 'from-rose-500 to-pink-600',
+      color:    'text-red-600',
+      bg:       'bg-red-50/50 border-red-100',
     },
   ]
 
@@ -203,10 +206,10 @@ export default function DashboardPage() {
           <p className="text-slate-500 text-[13px] mt-0.5">{todayLabel()}</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="gap-2 text-[13px] border-slate-200 text-slate-600 hover:bg-slate-50">
+          <Button size="sm" variant="outline" className="gap-2 text-[13px] border-slate-200 text-slate-600 hover:bg-slate-50 rounded-md">
             <FileText className="w-3.5 h-3.5" /> Generate Report
           </Button>
-          <Button size="sm" className="gap-2 text-[13px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20">
+          <Button size="sm" className="gap-2 text-[13px] bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm border-blue-500/20">
             <Plus className="w-3.5 h-3.5" /> Add Employee
           </Button>
         </div>
@@ -215,20 +218,15 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {kpis.map((kpi, i) => (
-          <motion.div key={kpi.label} {...fadeUp(0.05 * i)}>
-            <div className={`bg-gradient-to-br ${kpi.gradient} rounded-2xl p-5 text-white relative overflow-hidden`}>
-              <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-              <div className="relative">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="bg-white/20 rounded-xl p-2.5 backdrop-blur-sm">
-                    <kpi.icon className="w-5 h-5 text-white" />
-                  </div>
-                  <span className="text-[11px] bg-white/20 text-white/90 px-2.5 py-1 rounded-full font-medium">{kpi.change}</span>
-                </div>
-                <p className="text-3xl font-bold tracking-tight">{kpi.value}</p>
-                <p className="text-white/75 text-[13px] mt-1 font-medium">{kpi.label}</p>
+          <motion.div key={kpi.label} {...fadeUp(0.05 * i)} className={cn("rounded-md border p-6 shadow-sm transition-all hover:shadow-md", kpi.bg)}>
+            <div className="flex items-start justify-between mb-4">
+              <div className="rounded-md bg-white/60 p-2 shadow-sm">
+                <kpi.icon className={cn("w-5 h-5", kpi.color)} />
               </div>
+              <span className="text-[10px] font-bold uppercase tracking-tight text-slate-500 bg-white/60 px-2 py-0.5 rounded border border-white/40">{kpi.change}</span>
             </div>
+            <p className="text-2xl font-bold tracking-tight text-slate-900">{kpi.value}</p>
+            <p className="text-slate-600 text-[12px] mt-0.5 font-bold uppercase tracking-widest opacity-70">{kpi.label}</p>
           </motion.div>
         ))}
       </div>
@@ -237,34 +235,23 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Attendance Trend */}
         <motion.div {...fadeUp(0.15)} className="xl:col-span-2">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm shadow-slate-100 h-full">
-            <div className="border-t-2 border-t-blue-500 rounded-t-2xl" />
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-1 h-5 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full" />
-                  <h2 className="text-[15px] font-semibold text-slate-800">Attendance Trend (Last 7 Days)</h2>
-                </div>
+          <div className="bg-white rounded-md border border-slate-200 shadow-sm h-full">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-4 bg-blue-600 rounded-full" />
+                <h2 className="text-[14px] font-bold text-slate-900 uppercase tracking-wider">Attendance Trend</h2>
               </div>
+            </div>
+            <div className="p-5">
               <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={attendanceTrend} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.18} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.01} />
-                    </linearGradient>
-                    <linearGradient id="colorAbsent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f87171" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#f87171" stopOpacity={0.01} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }} />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="present" name="Present" stroke="#3b82f6" strokeWidth={2} fill="url(#colorPresent)" dot={false} />
-                  <Area type="monotone" dataKey="absent" name="Absent" stroke="#f87171" strokeWidth={2} fill="url(#colorAbsent)" dot={false} />
+                <AreaChart data={attendanceTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }} />
+                  <Legend iconType="rect" iconSize={8} wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
+                  <Area type="monotone" dataKey="present" name="Present" stroke="#2563eb" strokeWidth={2} fill="#2563eb" fillOpacity={0.05} dot={false} />
+                  <Area type="monotone" dataKey="absent" name="Absent" stroke="#ef4444" strokeWidth={2} fill="#ef4444" fillOpacity={0.05} dot={false} />
                   <Area type="monotone" dataKey="late" name="Late" stroke="#f59e0b" strokeWidth={2} fill="none" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -274,26 +261,25 @@ export default function DashboardPage() {
 
         {/* Department headcount */}
         <motion.div {...fadeUp(0.2)}>
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm shadow-slate-100 h-full">
-            <div className="border-t-2 border-t-indigo-500 rounded-t-2xl" />
+          <div className="bg-white rounded-md border border-slate-200 shadow-sm h-full">
+            <div className="p-5 border-b border-slate-100 flex items-center gap-2">
+              <div className="w-1 h-4 bg-slate-900 rounded-full" />
+              <h2 className="text-[14px] font-bold text-slate-900 uppercase tracking-wider">Demographics</h2>
+            </div>
             <div className="p-5">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-1 h-5 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full" />
-                <h2 className="text-[15px] font-semibold text-slate-800">Department Headcount</h2>
-              </div>
               {deptHeadcount.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={deptHeadcount} layout="vertical" margin={{ top: 0, right: 12, left: 10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                     <YAxis dataKey="department" type="category" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={72} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }} />
-                    <Bar dataKey="count" name="Employees" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                    <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+                    <Bar dataKey="count" name="Count" fill="#0B1C2C" radius={[0, 2, 2, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex items-center justify-center h-52 text-slate-400 text-[13px]">
-                  No employee data yet
+                <div className="flex items-center justify-center h-52 text-slate-400 text-[12px]">
+                  No data available
                 </div>
               )}
             </div>
@@ -305,17 +291,15 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Recent Employees */}
         <motion.div {...fadeUp(0.25)} className="xl:col-span-3">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm shadow-slate-100">
-            <div className="p-5 pb-0">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-1 h-5 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full" />
-                  <h2 className="text-[15px] font-semibold text-slate-800">Recent Employees</h2>
-                </div>
-                <button className="text-[12px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-                  View All <ArrowUpRight className="w-3 h-3" />
-                </button>
+          <div className="bg-white rounded-md border border-slate-200 shadow-sm">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-4 bg-blue-600 rounded-full" />
+                <h2 className="text-[14px] font-bold text-slate-900 uppercase tracking-wider">Resource Roster</h2>
               </div>
+              <button className="text-[11px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-widest flex items-center gap-1 transition-colors">
+                View All <ArrowUpRight className="w-3 h-3" />
+              </button>
             </div>
             {recentEmployees.length > 0 ? (
               <Table>
@@ -331,15 +315,15 @@ export default function DashboardPage() {
                   {recentEmployees.map((emp, idx) => (
                     <TableRow key={emp.id} className="border-slate-50 hover:bg-slate-50/60 transition-colors">
                       <TableCell className="pl-5 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar className="w-7 h-7">
-                            <AvatarFallback className={`bg-gradient-to-br ${avatarGradients[idx % avatarGradients.length]} text-white text-[10px] font-semibold`}>
-                              {`${emp.firstName[0] ?? ''}${emp.lastName[0] ?? ''}`.toUpperCase()}
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className={cn("text-[10px] font-bold uppercase", avatarColors[idx % avatarColors.length])}>
+                              {`${emp.firstName[0] ?? ''}${emp.lastName[0] ?? ''}`}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="text-[12px] font-semibold text-slate-800">{emp.name}</p>
-                            <p className="text-[11px] text-slate-400">{emp.email}</p>
+                            <p className="text-[12px] font-bold text-slate-900 leading-none mb-1">{emp.name}</p>
+                            <p className="text-[11px] text-slate-500 leading-none">{emp.email}</p>
                           </div>
                         </div>
                       </TableCell>
@@ -362,39 +346,38 @@ export default function DashboardPage() {
         {/* Pending Leave + Quick Actions */}
         <motion.div {...fadeUp(0.3)} className="xl:col-span-2 flex flex-col gap-4">
           {/* Pending Leave */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm shadow-slate-100 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1 h-5 bg-gradient-to-b from-amber-400 to-orange-500 rounded-full" />
-              <h2 className="text-[15px] font-semibold text-slate-800">Pending Leave Requests</h2>
+          <div className="bg-white rounded-md border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-1 h-4 bg-amber-500 rounded-full" />
+              <h2 className="text-[14px] font-bold text-slate-900 uppercase tracking-wider">Leave Queue</h2>
             </div>
             {pendingLeavesList.length > 0 ? (
               <div className="space-y-3">
                 {pendingLeavesList.map((req, idx) => (
-                  <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors"
-                    style={{ borderLeftWidth: 3, borderLeftColor: '#f59e0b' }}>
+                  <div key={req.id} className="flex items-center gap-4 p-3 rounded-md bg-white border border-slate-200 hover:border-blue-200 transition-colors">
                     <Avatar className="w-8 h-8 shrink-0">
-                      <AvatarFallback className={`bg-gradient-to-br ${avatarGradients[(idx + 2) % avatarGradients.length]} text-white text-[10px] font-semibold`}>
+                      <AvatarFallback className={cn("text-[10px] font-bold", avatarColors[(idx + 2) % avatarColors.length])}>
                         {req.employeeName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-semibold text-slate-800 truncate">{req.employeeName}</p>
-                      <p className="text-[11px] text-slate-500">{req.leaveType} · {req.fromDate} → {req.toDate}</p>
+                      <p className="text-[12px] font-bold text-slate-900 truncate">{req.employeeName}</p>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">{req.leaveType} · {req.fromDate} → {req.toDate}</p>
                     </div>
-                    <div className="flex gap-1.5 shrink-0">
+                    <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => handleLeaveAction(req.id, 'Approved')}
                         disabled={approvingId === req.id}
-                        className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                        className="w-8 h-8 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all disabled:opacity-50"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleLeaveAction(req.id, 'Rejected')}
                         disabled={approvingId === req.id}
-                        className="w-7 h-7 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center border border-rose-200 hover:bg-rose-100 transition-colors disabled:opacity-50"
+                        className="w-8 h-8 rounded-md bg-red-50 text-red-600 flex items-center justify-center border border-red-100 hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -412,25 +395,25 @@ export default function DashboardPage() {
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm shadow-slate-100 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1 h-5 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full" />
-              <h2 className="text-[15px] font-semibold text-slate-800">Quick Actions</h2>
+          <div className="bg-white rounded-md border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-1 h-4 bg-slate-900 rounded-full" />
+              <h2 className="text-[14px] font-bold text-slate-900 uppercase tracking-wider">Direct Actions</h2>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: 'Add Employee', icon: Plus,     gradient: 'from-blue-500 to-indigo-600',   shadow: 'shadow-blue-500/20' },
-                { label: 'Run Payroll',  icon: Play,     gradient: 'from-emerald-500 to-teal-600',  shadow: 'shadow-emerald-500/20' },
-                { label: 'Gen. Report',  icon: FileText, gradient: 'from-violet-500 to-purple-600', shadow: 'shadow-violet-500/20' },
+                { label: 'Add User', icon: Plus,     color: 'bg-blue-600 shadow-blue-500/20' },
+                { label: 'Payroll',  icon: Play,     color: 'bg-blue-600' },
+                { label: 'Reports',  icon: FileText, color: 'bg-slate-800' },
               ].map((action) => (
                 <button
                   key={action.label}
-                  className="flex flex-col items-center gap-2.5 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 hover:border-slate-200 transition-all group"
+                  className="flex flex-col items-center gap-2.5 p-4 rounded-md bg-white hover:bg-slate-50 border border-slate-200 transition-all group"
                 >
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${action.gradient} flex items-center justify-center shadow-lg ${action.shadow} group-hover:scale-105 transition-transform`}>
-                    <action.icon className="w-4 h-4 text-white" />
+                  <div className={cn('w-10 h-10 rounded-md flex items-center justify-center text-white shadow-sm transition-transform', action.color)}>
+                    <action.icon className="w-4 h-4" />
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-700 text-center leading-tight">{action.label}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 text-center leading-tight">{action.label}</span>
                 </button>
               ))}
             </div>
