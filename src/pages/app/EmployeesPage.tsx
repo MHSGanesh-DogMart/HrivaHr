@@ -25,8 +25,8 @@ import {
   type FirestoreEmployee, type EmployeeStatus,
   DEPARTMENTS, DESIGNATIONS, INDIAN_STATES,
 } from '@/services/employeeService'
-import { API_ENDPOINTS } from '@/lib/apiConfig'
 import BulkImportModal from '@/components/employees/BulkImportModal'
+import { inviteEmployee } from '@/services/inviteService'
 
 /* ─────────────────────────────────────────────────────────────────
    Constants
@@ -354,30 +354,23 @@ export default function EmployeesPage() {
       if (editingId) {
         await updateEmployee(tenantSlug, editingId, payload)
       } else {
-        await addEmployee(tenantSlug, payload)
-        
-        // Trigger onboarding email invitation (non-blocking)
-        try {
-          fetch(API_ENDPOINTS.INVITE, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: formData.email,
-              firstName: formData.firstName,
-              tenantSlug: tenantSlug,
-              employeeId: empId
-            })
-          }).then(async res => {
-            if (!res.ok) {
-              const errBody = await res.json().catch(() => ({}))
-              console.error('Invite email failed to send:', res.status, errBody.detail || res.statusText)
-            }
-          }).catch(err => {
-            console.error('Invite email fetch error', err)
-          })
-        } catch (mailErr) {
-          console.error('Failed to trigger invite email', mailErr)
-        }
+        const docId = await addEmployee(tenantSlug, payload)
+
+        // Send invite email via Firebase Auth (no backend needed — 100% reliable)
+        inviteEmployee({
+          tenantSlug,
+          employeeDocId: docId,
+          employeeId:    empId,
+          email:         formData.email,
+          firstName:     formData.firstName,
+          lastName:      formData.lastName,
+          name:          `${formData.firstName} ${formData.lastName}`.trim(),
+          designation:   formData.designation,
+          phone:         formData.phone,
+        }).catch(err => {
+          // Non-blocking — employee is saved even if email fails
+          console.warn('Invite email error (non-critical):', err?.message ?? err)
+        })
       }
 
       setDialogOpen(false)

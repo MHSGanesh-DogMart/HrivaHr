@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyA4vyW609Kh4N6Z_v8CWoXmJuArqeN58kc",
   authDomain: "hrivahr.firebaseapp.com",
   databaseURL: "https://hrivahr-default-rtdb.firebaseio.com",

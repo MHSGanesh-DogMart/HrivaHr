@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { Loader2, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { createUserWithEmailAndPassword } from 'firebase/auth'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { Input } from '@/components/ui/input'
@@ -37,50 +37,61 @@ export default function SetPasswordPage() {
     setError('')
 
     try {
-      // Get the existing employee to correctly form UserProfile constraints
       const empRef = doc(db, 'tenants', tenantSlug!, 'employees', docId!)
       const empSnap = await getDoc(empRef)
-      if (!empSnap.exists()) {
-        throw new Error('Employee account not found in system.')
-      }
+      if (!empSnap.exists()) throw new Error('Employee account not found in system.')
       const empData = empSnap.data()
 
-      // Create new user in Firebase Auth
-      const userCred = await createUserWithEmailAndPassword(auth, email!, password)
-      const uid = userCred.user.uid
+      let uid: string
 
-      // Create top-level user profile
-      const userProfile = {
-        uid,
-        role: 'employee',
-        tenantSlug,
-        firstName: empData.firstName,
-        lastName: empData.lastName,
-        email: email,
-        displayName: empData.name,
-        phone: empData.phone || '',
-        jobTitle: empData.designation || '',
+      try {
+        // Case A: Account not yet created — create it now
+        const userCred = await createUserWithEmailAndPassword(auth, email!, password)
+        uid = userCred.user.uid
+
+        // Write user profile
+        await setDoc(doc(db, 'users', uid), {
+          uid,
+          role:        'employee',
+          tenantSlug,
+          firstName:   empData.firstName,
+          lastName:    empData.lastName,
+          email,
+          displayName: empData.name,
+          phone:       empData.phone       || '',
+          jobTitle:    empData.designation || '',
+        })
+
+        // Link employee doc
+        await updateDoc(empRef, { uid, authStatus: 'active' })
+
+      } catch (createErr: any) {
+        if (createErr.code === 'auth/email-already-in-use') {
+          // Case B: Account was pre-created by admin (via inviteService).
+          // The employee is setting their chosen password for the first time.
+          // Firebase already emailed a reset link — if they're here via that
+          // link, their password is already set. Just try signing in.
+          try {
+            const signInCred = await signInWithEmailAndPassword(auth, email!, password)
+            uid = signInCred.user.uid
+            // Ensure employee doc is linked (idempotent)
+            await updateDoc(empRef, { uid, authStatus: 'active' })
+          } catch {
+            setError('Your account is already set up. Please use the login page to sign in, or use "Forgot Password" if needed.')
+            setLoading(false)
+            return
+          }
+        } else {
+          throw createErr
+        }
       }
-      await setDoc(doc(db, 'users', uid), userProfile)
-
-      // Update nested employee document with UID and proper status
-      await updateDoc(empRef, {
-        uid: uid,
-        authStatus: 'active'
-      })
 
       setSuccess(true)
-      // They are already logged in by createUserWithEmailAndPassword, the AuthContext
-      // will pick up their session immediately. Just direct to dashboard workspace!
-      setTimeout(() => navigate(`/${tenantSlug}/dashboard`), 2000)
+      setTimeout(() => navigate(`/${tenantSlug}/my-dashboard`), 2000)
 
     } catch (err: any) {
       console.error(err)
-      if (err.code === 'auth/email-already-in-use') {
-        setError('This email has already been set up. Please go to layout to sign in.')
-      } else {
-        setError(err.message || 'An error occurred while setting up your account.')
-      }
+      setError(err.message || 'An error occurred. Please try again.')
     } finally {
       setLoading(false)
     }

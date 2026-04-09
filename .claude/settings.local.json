@@ -16,7 +16,23 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(echo \"Exit code: $?\")",
       "Bash(firebase --version)",
-      "Bash(npx firebase:*)"
+      "Bash(npx firebase:*)",
+      "Bash(wc -l \"D:/Hemanth Play Store/Hr Portal/src/services\"/*.ts)",
+      "Bash(wc -l \"D:/Hemanth Play Store/Hr Portal/src/lib\"/*.ts)",
+      "Bash(grep -v \"//\")",
+      "Bash(wc -l \"D:\\\\Hemanth Play Store\\\\Hr Portal\\\\src/pages/app\"/*.tsx)",
+      "Bash(find \"D:\\\\Hemanth Play Store\\\\Hr Portal\\\\src/pages/app\" -name \"*.tsx\" -exec wc -l {} +)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''\\\\n''''.join\\(sorted\\(d.get\\(''''dependencies'''',{}\\).keys\\(\\)\\)\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://hrivahr.onrender.com/api/invite)",
+      "Bash(dir 'D:\\\\Hemanth Play Store\\\\Hr Portal' /b)",
+      "Bash(dir \"D:\\\\Hemanth Play Store\\\\Hr Portal\\\\server\" /b)",
+      "Bash(dir \"D:\\\\Hemanth Play Store\\\\Hr Portal\\\\functions\" /b)",
+      "Bash(dir \"D:\\\\Hemanth Play Store\\\\Hr Portal\\\\server\" /b /a)",
+      "Bash(curl -s https://hrivahr.onrender.com/api/health)",
+      "Bash(curl -s -X POST https://hrivahr.onrender.com/api/invite -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"m.hemanth517@gmail.com\"\",\"\"firstName\"\":\"\"Test\"\",\"\"tenantSlug\"\":\"\"petsaathi\"\",\"\"employeeId\"\":\"\"EMP-001\"\"}\")",
+      "Read(//c/Users/lapto/AppData/Local/Temp/claude/D--Hemanth-Play-Store-Hr-Portal/4c50c4fd-4d90-4861-a490-17ce10846415/tasks/**)",
+      "Bash(curl -v -X POST \"https://hrivahr.onrender.com/api/invite\" -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"m.hemanth517@gmail.com\"\",\"\"firstName\"\":\"\"Test\"\",\"\"tenantSlug\"\":\"\"petsaathi\"\",\"\"employeeId\"\":\"\"EMP-001\"\"}\")",
+      "Bash(curl --max-time 25 -X POST \"https://hrivahr.onrender.com/api/invite\" -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"m.hemanth517@gmail.com\"\",\"\"firstName\"\":\"\"Test\"\",\"\"tenantSlug\"\":\"\"petsaathi\"\",\"\"employeeId\"\":\"\"EMP-001\"\"}')"
     ]
   }
 }
