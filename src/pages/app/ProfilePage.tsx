@@ -31,7 +31,26 @@ function fmtDate(val: string | undefined) {
   } catch { return val }
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, isEditing, onChange, type = 'text' }: { 
+  label: string; 
+  value: any; 
+  isEditing?: boolean; 
+  onChange?: (val: any) => void;
+  type?: string;
+}) {
+  if (isEditing && onChange) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-[10px] uppercase tracking-widest font-bold text-slate-400">{label}</Label>
+        <Input 
+          type={type} 
+          value={value || ''} 
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-[13px] border-slate-200"
+        />
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">{label}</span>
@@ -40,12 +59,20 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function SectionCard({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
+function SectionCard({ title, icon: Icon, children, trailing }: { 
+  title: string; 
+  icon: any; 
+  children: React.ReactNode; 
+  trailing?: React.ReactNode;
+}) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
-        <Icon className="w-4 h-4 text-slate-500" />
-        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-600">{title}</h3>
+    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden h-full">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex items-center gap-2.5">
+          <Icon className="w-4 h-4 text-slate-500" />
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-600">{title}</h3>
+        </div>
+        {trailing}
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -88,8 +115,11 @@ export default function ProfilePage() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   const [employee, setEmployee] = useState<FirestoreEmployee | null>(null)
+  const [formData, setFormData] = useState<FirestoreEmployee | null>(null)
   const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
   const [activeTab, setActiveTab] = useState('personal')
+  const [editingSection, setEditingSection] = useState<string | null>(null)
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null)
   const [attendanceSummary, setAttendanceSummary] = useState<any>(null)
 
@@ -114,6 +144,7 @@ export default function ProfilePage() {
 
       if (emp) {
         setEmployee(emp)
+        setFormData(emp)
         // Load supporting data
         const [lb, as] = await Promise.all([
           getLeaveBalance(tenantSlug, emp.id),
@@ -131,6 +162,30 @@ export default function ProfilePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleSave() {
+    if (!formData || !tenantSlug) return
+    setSaving(true)
+    try {
+      await updateEmployee(tenantSlug, formData.id, formData)
+      setEmployee(formData)
+      setEditingSection(null)
+    } catch (err) {
+      console.error('Save failed:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleCancel() {
+    setFormData(employee)
+    setEditingSection(null)
+  }
+
+  function updateField(key: keyof FirestoreEmployee, val: any) {
+    if (!formData) return
+    setFormData({ ...formData, [key]: val })
   }
 
   if (loading) {
@@ -281,11 +336,65 @@ export default function ProfilePage() {
 
       {/* Tab Content */}
       <div className="px-6 py-6">
-        {activeTab === 'personal'   && <PersonalTab   emp={employee} leaveBalance={leaveBalance} />}
-        {activeTab === 'work'       && <WorkTab       emp={employee} isAdmin={isAdmin} />}
-        {activeTab === 'address'    && <AddressTab    emp={employee} />}
-        {activeTab === 'govtids'    && <GovtIdsTab    emp={employee} isAdmin={isAdmin} />}
-        {activeTab === 'bank'       && <BankTab       emp={employee} isAdmin={isAdmin} />}
+        {activeTab === 'personal'   && (
+          <PersonalTab   
+            emp={formData || employee} 
+            isEditing={editingSection === 'personal'}
+            setEditing={(v) => setEditingSection(v ? 'personal' : null)}
+            onUpdate={updateField}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            saving={saving}
+            leaveBalance={leaveBalance} 
+          />
+        )}
+        {activeTab === 'work'       && (
+          <WorkTab       
+            emp={formData || employee} 
+            isEditing={editingSection === 'work'}
+            setEditing={(v) => setEditingSection(v ? 'work' : null)}
+            onUpdate={updateField}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            saving={saving}
+            isAdmin={isAdmin} 
+          />
+        )}
+        {activeTab === 'address'    && (
+          <AddressTab    
+            emp={formData || employee} 
+            isEditing={editingSection === 'address'}
+            setEditing={(v) => setEditingSection(v ? 'address' : null)}
+            onUpdate={updateField}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            saving={saving}
+          />
+        )}
+        {activeTab === 'govtids'    && (
+          <GovtIdsTab    
+            emp={formData || employee} 
+            isEditing={editingSection === 'govtids'}
+            setEditing={(v) => setEditingSection(v ? 'govtids' : null)}
+            onUpdate={updateField}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            saving={saving}
+            isAdmin={isAdmin} 
+          />
+        )}
+        {activeTab === 'bank'       && (
+          <BankTab       
+            emp={formData || employee} 
+            isEditing={editingSection === 'bank'}
+            setEditing={(v) => setEditingSection(v ? 'bank' : null)}
+            onUpdate={updateField}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            saving={saving}
+            isAdmin={isAdmin} 
+          />
+        )}
         {activeTab === 'education'  && <EducationTab  emp={employee} />}
         {activeTab === 'experience' && <ExperienceTab emp={employee} />}
       </div>
@@ -296,41 +405,97 @@ export default function ProfilePage() {
 /* ─────────────────────────────────────────────────────────────────
    TAB 1 — Personal
 ───────────────────────────────────────────────────────────────────*/
-function PersonalTab({ emp, leaveBalance }: { emp: FirestoreEmployee; leaveBalance: LeaveBalance | null }) {
+function PersonalTab({ 
+  emp, 
+  isEditing, 
+  setEditing, 
+  onUpdate, 
+  onSave, 
+  onCancel, 
+  saving,
+  leaveBalance 
+}: { 
+  emp: FirestoreEmployee; 
+  isEditing: boolean;
+  setEditing: (v: boolean) => void;
+  onUpdate: (k: any, v: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  leaveBalance: LeaveBalance | null 
+}) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <SectionCard title="Personal Information" icon={User}>
+      <SectionCard 
+        title="Personal Information" 
+        icon={User}
+        trailing={
+          isEditing ? (
+            <div className="flex gap-2">
+              <Button size="xs" variant="ghost" onClick={onCancel} disabled={saving} className="h-7 text-[10px] uppercase font-bold">Cancel</Button>
+              <Button size="xs" onClick={onSave} disabled={saving} className="h-7 text-[10px] uppercase font-bold bg-blue-600 hover:bg-blue-700">
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )
+        }
+      >
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <InfoRow label="First Name"    value={fmt(emp.firstName)} />
-          <InfoRow label="Last Name"     value={fmt(emp.lastName)} />
-          <InfoRow label="Middle Name"   value={fmt(emp.middleName)} />
-          <InfoRow label="Gender"        value={fmt(emp.gender)} />
-          <InfoRow label="Date of Birth" value={fmtDate(emp.dateOfBirth)} />
-          <InfoRow label="Blood Group"   value={fmt(emp.bloodGroup)} />
-          <InfoRow label="Marital Status" value={fmt(emp.maritalStatus)} />
-          <InfoRow label="Nationality"   value={fmt(emp.nationality, 'Indian')} />
-          <InfoRow label="Religion"      value={fmt(emp.religion)} />
-          <InfoRow label="Caste"         value={fmt(emp.caste)} />
+          <InfoRow label="First Name"    value={emp.firstName} isEditing={isEditing} onChange={(v) => onUpdate('firstName', v)} />
+          <InfoRow label="Last Name"     value={emp.lastName} isEditing={isEditing} onChange={(v) => onUpdate('lastName', v)} />
+          <InfoRow label="Middle Name"   value={emp.middleName} isEditing={isEditing} onChange={(v) => onUpdate('middleName', v)} />
+          <InfoRow label="Gender"        value={emp.gender} isEditing={isEditing} onChange={(v) => onUpdate('gender', v)} />
+          <InfoRow label="Date of Birth" value={emp.dateOfBirth} isEditing={isEditing} type="date" onChange={(v) => onUpdate('dateOfBirth', v)} />
+          <InfoRow label="Blood Group"   value={emp.bloodGroup} isEditing={isEditing} onChange={(v) => onUpdate('bloodGroup', v)} />
+          <InfoRow label="Marital Status" value={emp.maritalStatus} isEditing={isEditing} onChange={(v) => onUpdate('maritalStatus', v)} />
+          <InfoRow label="Nationality"   value={emp.nationality || 'Indian'} isEditing={isEditing} onChange={(v) => onUpdate('nationality', v)} />
+          <InfoRow label="Religion"      value={emp.religion} isEditing={isEditing} onChange={(v) => onUpdate('religion', v)} />
+          <InfoRow label="Caste"         value={emp.caste} isEditing={isEditing} onChange={(v) => onUpdate('caste', v)} />
+          {/* Differently Abled - simple toggle logic or just read-only for now */}
           <InfoRow label="Differently Abled" value={emp.differentlyAbled ? 'Yes' : 'No'} />
         </div>
       </SectionCard>
 
-      <SectionCard title="Contact Information" icon={Phone}>
+      <SectionCard 
+        title="Contact Information" 
+        icon={Phone}
+        trailing={
+          isEditing ? null : (
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )
+        }
+      >
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <InfoRow label="Work Email"     value={fmt(emp.email)} />
-          <InfoRow label="Personal Email" value={fmt(emp.personalEmail)} />
-          <InfoRow label="Work Phone"     value={fmt(emp.phone)} />
-          <InfoRow label="Personal Phone" value={fmt(emp.personalPhone)} />
+          <InfoRow label="Work Email"     value={emp.email} /> {/* Email usually not editable here for auth reasons */}
+          <InfoRow label="Personal Email" value={emp.personalEmail} isEditing={isEditing} onChange={(v) => onUpdate('personalEmail', v)} />
+          <InfoRow label="Work Phone"     value={emp.phone} isEditing={isEditing} onChange={(v) => onUpdate('phone', v)} />
+          <InfoRow label="Personal Phone" value={emp.personalPhone} isEditing={isEditing} onChange={(v) => onUpdate('personalPhone', v)} />
         </div>
       </SectionCard>
 
-      <SectionCard title="Emergency Contact" icon={AlertCircle}>
+      <SectionCard 
+        title="Emergency Contact" 
+        icon={AlertCircle}
+        trailing={
+          isEditing ? null : (
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )
+        }
+      >
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <InfoRow label="Contact Name"   value={fmt(emp.emergencyName)} />
-          <InfoRow label="Relationship"   value={fmt(emp.emergencyRelation)} />
-          <InfoRow label="Contact Phone"  value={fmt(emp.emergencyPhone)} />
-          <InfoRow label="Spouse Name"    value={fmt(emp.spouseName)} />
-          <InfoRow label="No. of Children" value={emp.childrenCount != null ? String(emp.childrenCount) : '—'} />
+          <InfoRow label="Contact Name"   value={emp.emergencyName} isEditing={isEditing} onChange={(v) => onUpdate('emergencyName', v)} />
+          <InfoRow label="Relationship"   value={emp.emergencyRelation} isEditing={isEditing} onChange={(v) => onUpdate('emergencyRelation', v)} />
+          <InfoRow label="Contact Phone"  value={emp.emergencyPhone} isEditing={isEditing} onChange={(v) => onUpdate('emergencyPhone', v)} />
+          <InfoRow label="Spouse Name"    value={emp.spouseName} isEditing={isEditing} onChange={(v) => onUpdate('spouseName', v)} />
+          <InfoRow label="No. of Children" value={emp.childrenCount} isEditing={isEditing} type="number" onChange={(v) => onUpdate('childrenCount', parseInt(v) || 0)} />
         </div>
       </SectionCard>
 
@@ -369,30 +534,67 @@ function PersonalTab({ emp, leaveBalance }: { emp: FirestoreEmployee; leaveBalan
 /* ─────────────────────────────────────────────────────────────────
    TAB 2 — Work
 ───────────────────────────────────────────────────────────────────*/
-function WorkTab({ emp, isAdmin }: { emp: FirestoreEmployee; isAdmin: boolean }) {
+function WorkTab({ 
+  emp, 
+  isEditing, 
+  setEditing, 
+  onUpdate, 
+  onSave, 
+  onCancel, 
+  saving,
+  isAdmin 
+}: { 
+  emp: FirestoreEmployee; 
+  isEditing: boolean;
+  setEditing: (v: boolean) => void;
+  onUpdate: (k: any, v: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  isAdmin: boolean 
+}) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <SectionCard title="Job Information" icon={Briefcase}>
+      <SectionCard 
+        title="Job Information" 
+        icon={Briefcase}
+        trailing={
+          isAdmin && (
+            isEditing ? (
+              <div className="flex gap-2">
+                <Button size="xs" variant="ghost" onClick={onCancel} disabled={saving} className="h-7 text-[10px] uppercase font-bold">Cancel</Button>
+                <Button size="xs" onClick={onSave} disabled={saving} className="h-7 text-[10px] uppercase font-bold bg-blue-600 hover:bg-blue-700">
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+                <Pencil className="w-3 h-3 mr-1" /> Edit
+              </Button>
+            )
+          )
+        }
+      >
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <InfoRow label="Employee ID"     value={fmt(emp.employeeId)} />
-          <InfoRow label="Designation"     value={fmt(emp.designation)} />
-          <InfoRow label="Department"      value={fmt(emp.department)} />
-          <InfoRow label="Sub Department"  value={fmt(emp.subDepartment)} />
-          <InfoRow label="Location"        value={fmt(emp.location)} />
-          <InfoRow label="Work Type"       value={fmt(emp.workType)} />
-          <InfoRow label="Employment Type" value={fmt(emp.employmentType)} />
-          <InfoRow label="Status"          value={fmt(emp.status)} />
-          <InfoRow label="Grade / Band"    value={fmt(emp.grade)} />
-          <InfoRow label="Cost Center"     value={fmt(emp.costCenter)} />
+          <InfoRow label="Employee ID"     value={emp.employeeId} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('employeeId', v)} />
+          <InfoRow label="Designation"     value={emp.designation} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('designation', v)} />
+          <InfoRow label="Department"      value={emp.department} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('department', v)} />
+          <InfoRow label="Sub Department"  value={emp.subDepartment} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('subDepartment', v)} />
+          <InfoRow label="Location"        value={emp.location} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('location', v)} />
+          <InfoRow label="Work Type"       value={emp.workType} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('workType', v)} />
+          <InfoRow label="Employment Type" value={emp.employmentType} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('employmentType', v)} />
+          <InfoRow label="Status"          value={emp.status} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('status', v)} />
+          <InfoRow label="Grade / Band"    value={emp.grade} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('grade', v)} />
+          <InfoRow label="Cost Center"     value={emp.costCenter} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('costCenter', v)} />
         </div>
       </SectionCard>
 
       <SectionCard title="Employment Dates" icon={Calendar}>
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <InfoRow label="Date of Joining"    value={fmtDate(emp.joinDate)} />
-          <InfoRow label="Confirmation Date"  value={fmtDate(emp.confirmationDate)} />
-          <InfoRow label="Probation Period"   value={emp.probationMonths ? `${emp.probationMonths} months` : '—'} />
-          <InfoRow label="Notice Period"      value={emp.noticePeriodDays ? `${emp.noticePeriodDays} days` : '—'} />
+          <InfoRow label="Date of Joining"    value={emp.joinDate} isEditing={isAdmin && isEditing} type="date" onChange={(v) => onUpdate('joinDate', v)} />
+          <InfoRow label="Confirmation Date"  value={emp.confirmationDate} isEditing={isAdmin && isEditing} type="date" onChange={(v) => onUpdate('confirmationDate', v)} />
+          <InfoRow label="Probation Period"   value={emp.probationMonths} isEditing={isAdmin && isEditing} type="number" onChange={(v) => onUpdate('probationMonths', parseInt(v) || 0)} />
+          <InfoRow label="Notice Period"      value={emp.noticePeriodDays} isEditing={isAdmin && isEditing} type="number" onChange={(v) => onUpdate('noticePeriodDays', parseInt(v) || 0)} />
         </div>
       </SectionCard>
 
@@ -422,33 +624,88 @@ function WorkTab({ emp, isAdmin }: { emp: FirestoreEmployee; isAdmin: boolean })
 /* ─────────────────────────────────────────────────────────────────
    TAB 3 — Address
 ───────────────────────────────────────────────────────────────────*/
-function AddressTab({ emp }: { emp: FirestoreEmployee }) {
+function AddressTab({ 
+  emp, 
+  isEditing, 
+  setEditing, 
+  onUpdate, 
+  onSave, 
+  onCancel, 
+  saving 
+}: { 
+  emp: FirestoreEmployee; 
+  isEditing: boolean;
+  setEditing: (v: boolean) => void;
+  onUpdate: (k: any, v: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <SectionCard title="Current Address" icon={MapPin}>
+      <SectionCard 
+        title="Current Address" 
+        icon={MapPin}
+        trailing={
+          isEditing ? (
+            <div className="flex gap-2">
+              <Button size="xs" variant="ghost" onClick={onCancel} disabled={saving} className="h-7 text-[10px] uppercase font-bold">Cancel</Button>
+              <Button size="xs" onClick={onSave} disabled={saving} className="h-7 text-[10px] uppercase font-bold bg-blue-600 hover:bg-blue-700">
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )
+        }
+      >
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
           <div className="col-span-2">
-            <InfoRow label="Address Line" value={fmt(emp.currentAddressLine)} />
+            <InfoRow label="Address Line" value={emp.currentAddressLine} isEditing={isEditing} onChange={(v) => onUpdate('currentAddressLine', v)} />
           </div>
-          <InfoRow label="City"     value={fmt(emp.currentCity)} />
-          <InfoRow label="State"    value={fmt(emp.currentState)} />
-          <InfoRow label="PIN Code" value={fmt(emp.currentPinCode)} />
-          <InfoRow label="Country"  value={fmt(emp.currentCountry, 'India')} />
+          <InfoRow label="City"     value={emp.currentCity} isEditing={isEditing} onChange={(v) => onUpdate('currentCity', v)} />
+          <InfoRow label="State"    value={emp.currentState} isEditing={isEditing} onChange={(v) => onUpdate('currentState', v)} />
+          <InfoRow label="PIN Code" value={emp.currentPinCode} isEditing={isEditing} onChange={(v) => onUpdate('currentPinCode', v)} />
+          <InfoRow label="Country"  value={emp.currentCountry} isEditing={isEditing} onChange={(v) => onUpdate('currentCountry', v)} />
         </div>
       </SectionCard>
 
-      <SectionCard title="Permanent Address" icon={MapPin}>
-        {emp.sameAsCurrent ? (
+      <SectionCard 
+        title="Permanent Address" 
+        icon={MapPin}
+        trailing={
+          isEditing ? null : (
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )
+        }
+      >
+        {emp.sameAsCurrent && !isEditing ? (
           <p className="text-sm text-slate-500 italic">Same as current address</p>
         ) : (
           <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+            {isEditing && (
+               <div className="col-span-2 flex items-center gap-2 mb-2">
+                 <input 
+                   type="checkbox" 
+                   id="sameAsCurrent"
+                   checked={emp.sameAsCurrent}
+                   onChange={(e) => onUpdate('sameAsCurrent', e.target.checked)}
+                   className="rounded border-slate-300"
+                 />
+                 <Label htmlFor="sameAsCurrent" className="text-xs text-slate-600">Same as current address</Label>
+               </div>
+            )}
             <div className="col-span-2">
-              <InfoRow label="Address Line" value={fmt(emp.permanentAddressLine)} />
+              <InfoRow label="Address Line" value={emp.permanentAddressLine} isEditing={isEditing} onChange={(v) => onUpdate('permanentAddressLine', v)} />
             </div>
-            <InfoRow label="City"     value={fmt(emp.permanentCity)} />
-            <InfoRow label="State"    value={fmt(emp.permanentState)} />
-            <InfoRow label="PIN Code" value={fmt(emp.permanentPinCode)} />
-            <InfoRow label="Country"  value={fmt(emp.permanentCountry, 'India')} />
+            <InfoRow label="City"     value={emp.permanentCity} isEditing={isEditing} onChange={(v) => onUpdate('permanentCity', v)} />
+            <InfoRow label="State"    value={emp.permanentState} isEditing={isEditing} onChange={(v) => onUpdate('permanentState', v)} />
+            <InfoRow label="PIN Code" value={emp.permanentPinCode} isEditing={isEditing} onChange={(v) => onUpdate('permanentPinCode', v)} />
+            <InfoRow label="Country"  value={emp.permanentCountry} isEditing={isEditing} onChange={(v) => onUpdate('permanentCountry', v)} />
           </div>
         )}
       </SectionCard>
@@ -459,29 +716,61 @@ function AddressTab({ emp }: { emp: FirestoreEmployee }) {
 /* ─────────────────────────────────────────────────────────────────
    TAB 4 — Govt IDs
 ───────────────────────────────────────────────────────────────────*/
-function GovtIdsTab({ emp, isAdmin }: { emp: FirestoreEmployee; isAdmin: boolean }) {
+function GovtIdsTab({ 
+  emp, 
+  isEditing, 
+  setEditing, 
+  onUpdate, 
+  onSave, 
+  onCancel, 
+  saving,
+  isAdmin 
+}: { 
+  emp: FirestoreEmployee; 
+  isEditing: boolean;
+  setEditing: (v: boolean) => void;
+  onUpdate: (k: any, v: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  isAdmin: boolean 
+}) {
   function maskAadhaar(v: string | undefined) {
     if (!v) return '—'
     if (!isAdmin) return `XXXX-XXXX-${v.slice(-4)}`
     return v
   }
-  function maskAccount(v: string | undefined) {
-    if (!v) return '—'
-    if (!isAdmin) return `XXXX-${v.slice(-4)}`
-    return v
-  }
 
   return (
-    <SectionCard title="Government Identification" icon={Shield}>
+    <SectionCard 
+      title="Government Identification" 
+      icon={Shield}
+      trailing={
+        isAdmin && (
+          isEditing ? (
+            <div className="flex gap-2">
+              <Button size="xs" variant="ghost" onClick={onCancel} disabled={saving} className="h-7 text-[10px] uppercase font-bold">Cancel</Button>
+              <Button size="xs" onClick={onSave} disabled={saving} className="h-7 text-[10px] uppercase font-bold bg-blue-600 hover:bg-blue-700">
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )
+        )
+      }
+    >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6">
-        <InfoRow label="PAN Number"       value={isAdmin ? fmt(emp.panNumber) : (emp.panNumber ? `XXXXX${emp.panNumber.slice(-4)}` : '—')} />
-        <InfoRow label="Aadhaar Number"   value={maskAadhaar(emp.aadhaarNumber)} />
-        <InfoRow label="UAN (PF)"         value={fmt(emp.uan)} />
-        <InfoRow label="ESIC Number"      value={fmt(emp.esicNumber)} />
-        <InfoRow label="Passport Number"  value={fmt(emp.passportNumber)} />
-        <InfoRow label="Passport Expiry"  value={fmtDate(emp.passportExpiry)} />
-        <InfoRow label="Voter ID"         value={fmt(emp.voterIdNumber)} />
-        <InfoRow label="Driving License"  value={fmt(emp.drivingLicense)} />
+        <InfoRow label="PAN Number"       value={emp.panNumber} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('panNumber', v)} />
+        <InfoRow label="Aadhaar Number"   value={emp.aadhaarNumber} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('aadhaarNumber', v)} />
+        <InfoRow label="UAN (PF)"         value={emp.uan} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('uan', v)} />
+        <InfoRow label="ESIC Number"      value={emp.esicNumber} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('esicNumber', v)} />
+        <InfoRow label="Passport Number"  value={emp.passportNumber} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('passportNumber', v)} />
+        <InfoRow label="Passport Expiry"  value={emp.passportExpiry} isEditing={isAdmin && isEditing} type="date" onChange={(v) => onUpdate('passportExpiry', v)} />
+        <InfoRow label="Voter ID"         value={emp.voterIdNumber} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('voterIdNumber', v)} />
+        <InfoRow label="Driving License"  value={emp.drivingLicense} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('drivingLicense', v)} />
       </div>
       {!isAdmin && (
         <p className="mt-4 text-[11px] text-slate-400 flex items-center gap-1.5">
@@ -496,7 +785,25 @@ function GovtIdsTab({ emp, isAdmin }: { emp: FirestoreEmployee; isAdmin: boolean
 /* ─────────────────────────────────────────────────────────────────
    TAB 5 — Bank
 ───────────────────────────────────────────────────────────────────*/
-function BankTab({ emp, isAdmin }: { emp: FirestoreEmployee; isAdmin: boolean }) {
+function BankTab({ 
+  emp, 
+  isEditing, 
+  setEditing, 
+  onUpdate, 
+  onSave, 
+  onCancel, 
+  saving,
+  isAdmin 
+}: { 
+  emp: FirestoreEmployee; 
+  isEditing: boolean;
+  setEditing: (v: boolean) => void;
+  onUpdate: (k: any, v: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  isAdmin: boolean 
+}) {
   const maskedAcct = emp.accountNumber
     ? isAdmin
       ? emp.accountNumber
@@ -504,7 +811,26 @@ function BankTab({ emp, isAdmin }: { emp: FirestoreEmployee; isAdmin: boolean })
     : '—'
 
   return (
-    <SectionCard title="Bank Details" icon={Building2}>
+    <SectionCard 
+      title="Bank Details" 
+      icon={Building2}
+      trailing={
+        isAdmin && (
+          isEditing ? (
+            <div className="flex gap-2">
+              <Button size="xs" variant="ghost" onClick={onCancel} disabled={saving} className="h-7 text-[10px] uppercase font-bold">Cancel</Button>
+              <Button size="xs" onClick={onSave} disabled={saving} className="h-7 text-[10px] uppercase font-bold bg-blue-600 hover:bg-blue-700">
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)} className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )
+        )
+      }
+    >
       {!isAdmin && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-md px-3 py-2.5 mb-5">
           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -512,12 +838,12 @@ function BankTab({ emp, isAdmin }: { emp: FirestoreEmployee; isAdmin: boolean })
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6">
-        <InfoRow label="Bank Name"       value={fmt(emp.bankName)} />
-        <InfoRow label="Account Number"  value={maskedAcct} />
-        <InfoRow label="IFSC Code"       value={fmt(emp.ifscCode)} />
-        <InfoRow label="Account Type"    value={fmt(emp.accountType)} />
+        <InfoRow label="Bank Name"       value={emp.bankName} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('bankName', v)} />
+        <InfoRow label="Account Number"  value={isAdmin && isEditing ? emp.accountNumber : maskedAcct} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('accountNumber', v)} />
+        <InfoRow label="IFSC Code"       value={emp.ifscCode} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('ifscCode', v)} />
+        <InfoRow label="Account Type"    value={emp.accountType} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('accountType', v)} />
         <div className="col-span-2">
-          <InfoRow label="Branch Name"   value={fmt(emp.branchName)} />
+          <InfoRow label="Branch Name"   value={emp.branchName} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('branchName', v)} />
         </div>
       </div>
     </SectionCard>
