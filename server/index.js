@@ -50,8 +50,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Explicitly handle preflight (Fixed for Express v5)
-app.options('(.*)', cors());
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('HrivaHR Backend is Live 🚀'));
