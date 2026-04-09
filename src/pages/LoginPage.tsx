@@ -104,6 +104,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [resetSent, setResetSent] = useState(false)
 
   useEffect(() => {
     if (!authLoading && profile) {
@@ -119,6 +120,33 @@ export default function LoginPage() {
     const result = await login(email, password)
     if (result.error) {
       setError(result.error)
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your work email first.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const apiBase = 'https://hrivahr.onrender.com'
+      const response = await fetch(`${apiBase}/api/password-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const result = await response.json()
+      if (response.ok) {
+        setResetSent(true)
+      } else {
+        setError(result.error || 'Reset failed')
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.')
+    } finally {
       setLoading(false)
     }
   }
@@ -182,6 +210,13 @@ export default function LoginPage() {
               </div>
             )}
 
+            {resetSent && (
+              <div className="mb-6 flex items-start gap-3 bg-emerald-50 border border-emerald-100 p-4 rounded-md">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-700 font-medium">A premium reset link has been sent to your inbox.</p>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Work Email</Label>
@@ -199,7 +234,13 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Credential</Label>
-                  <a href="#" className="text-[11px] font-bold text-blue-600 hover:underline">Reset?</a>
+                  <button 
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-[11px] font-bold text-blue-600 hover:underline"
+                  >
+                    Reset?
+                  </button>
                 </div>
                 <div className="relative">
                   <Input 

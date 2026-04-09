@@ -478,6 +478,115 @@ app.post('/api/email/appraisal-reminder', async (req, res) => {
   }
 });
 
+/* ── Branded Password Reset Email ────────────────────────────── */
+app.post('/api/password-reset', async (req, res) => {
+  const { email, tenantSlug } = req.body;
+  
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (!admin.apps.length) return res.status(503).json({ error: 'Firebase Admin not ready' });
+
+  try {
+    // 1. Verify user exists in Firebase Auth
+    const user = await admin.auth().getUserByEmail(email);
+    
+    // 2. Generate a secure Firebase Reset Link
+    const frontendUrl = process.env.FRONTEND_URL || 'https://hrivahr.web.app';
+    const actionCodeSettings = {
+      url: `${frontendUrl}${tenantSlug ? `/${tenantSlug}` : ''}/login`,
+    };
+    const resetLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+
+    // 3. Send via Premium Nodemailer Template
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+</head>
+<body style="margin:0;padding:0;background-color:#0F172A;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0F172A;padding:40px 16px;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0"
+      style="max-width:600px;width:100%;background-color:#1E293B;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+      
+      <tr>
+        <td style="background:linear-gradient(135deg,#EF4444 0%,#B91C1C 100%);padding:50px 40px;text-align:center;">
+          <div style="display:inline-block;background:rgba(255,255,255,0.15);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:12px 24px;margin-bottom:24px;">
+            <span style="color:#fff;font-size:26px;font-weight:800;letter-spacing:1px;text-shadow:0 2px 4px rgba(0,0,0,0.2);">
+              Hriva<span style="color:#FCA5A5;">HR</span>
+            </span>
+          </div>
+          <h1 style="color:#fff;margin:0;font-size:32px;font-weight:800;line-height:1.2;letter-spacing:-0.5px;">
+            Reset Your Password
+          </h1>
+          <p style="color:rgba(255,255,255,0.9);margin:12px 0 0;font-size:16px;font-weight:500;">
+            Security verification for ${email}
+          </p>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:45px 45px 35px;">
+          <p style="margin:0 0 10px;font-size:24px;font-weight:700;color:#F8FAFC;">
+            Forgot your password?
+          </p>
+          <p style="margin:0 0 30px;font-size:16px;color:#94A3B8;line-height:1.8;">
+            No problem! It happens to the best of us. Click the primary button below to safely create a new password for your HrivaHR account.
+          </p>
+
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td align="center" style="padding-bottom:35px;">
+                <a href="${resetLink}"
+                  style="display:inline-block;background:linear-gradient(135deg,#EF4444,#DC2626);color:#ffffff;text-decoration:none;font-size:17px;font-weight:700;padding:18px 50px;border-radius:14px;box-shadow:0 10px 25px rgba(239,68,68,0.4);">
+                  Create New Password 🛡️
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:0;padding-top:20px;border-top:1px solid rgba(255,255,255,0.05);font-size:13px;color:#64748B;text-align:center;">
+            If you didn't request this, you can safely ignore this email. Link expires in <strong style="color:#94A3B8;">1 hour</strong>.
+          </p>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="background-color:rgba(0,0,0,0.1);padding:30px 45px;text-align:center;">
+          <p style="margin:0 0 8px;font-size:12px;color:#64748B;">
+            Sent by <strong style="color:#EF4444;">HrivaHR Security</strong>
+          </p>
+          <p style="margin:0;font-size:11px;color:#475569;">
+            &copy; 2026 HrivaHR Global. Protect your credentials.
+          </p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+
+    await transporter.sendMail({
+      from:    `HrivaHR Security <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `Reset your HrivaHR password 🛡️`,
+      html,
+    });
+
+    res.json({ success: true, message: 'Premium reset email sent' });
+
+  } catch (err) {
+    console.error('Password reset error:', err);
+    if (err.code === 'auth/user-not-found') {
+      // Don't leak exists status, but tell user to check email
+      return res.json({ success: true, message: 'If that email exists, a reset link has been sent' });
+    }
+    res.status(500).json({ error: 'Failed to send reset email', detail: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend server running on port ${PORT}`);

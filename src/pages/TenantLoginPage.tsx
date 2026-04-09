@@ -115,6 +115,7 @@ export default function TenantLoginPage() {
   const [loading, setLoading] = useState(false)
   const [done,    setDone]    = useState(false)
   const [error,   setError]   = useState('')
+  const [resetSent, setResetSent] = useState(false)
 
   /* Redirect if already logged in */
   useEffect(() => {
@@ -210,6 +211,30 @@ export default function TenantLoginPage() {
       else if (p.role === 'admin')       navigate(`/${p.tenantSlug}/dashboard`)
       else                               navigate(`/${p.tenantSlug}/my-dashboard`)
     }, 800)
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Enter your work email address first.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const apiBase = 'https://hrivahr.onrender.com'
+      const response = await fetch(`${apiBase}/api/password-reset`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email, tenantSlug: slug }),
+      })
+      const result = await response.json()
+      if (response.ok) setResetSent(true)
+      else setError(result.error || 'Reset failed')
+    } catch (err) {
+      setError('Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   /* ── Email + Password ── */
@@ -456,6 +481,19 @@ export default function TenantLoginPage() {
               )}
             </AnimatePresence>
 
+            <AnimatePresence>
+              {resetSent && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <p className="text-[12.5px] text-emerald-700 font-medium">Branded reset link sent! Check your Gmail.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <AnimatePresence mode="wait">
               {/* ── Email + Password Form ── */}
               {method === 'email' && (
@@ -488,7 +526,11 @@ export default function TenantLoginPage() {
                       <Label htmlFor="password" className="text-[12.5px] font-medium text-slate-700">
                         Password
                       </Label>
-                      <button type="button" className="text-[12px] text-blue-600 hover:text-blue-700 font-medium transition-colors">
+                      <button 
+                        type="button" 
+                        onClick={handleForgotPassword}
+                        className="text-[12px] text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                      >
                         Forgot password?
                       </button>
                     </div>
