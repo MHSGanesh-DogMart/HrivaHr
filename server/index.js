@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import admin from 'firebase-admin';
+import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +53,24 @@ app.use(cors({
 
 app.use(express.json());
 
+// ── Nodemailer Transporter ───────────────────────────────────────
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// Verify connection configuration
+transporter.verify((error) => {
+  if (error) {
+    console.warn('Nodemailer configuration error:', error.message);
+  } else {
+    console.log('Nodemailer is ready to take our messages 📧');
+  }
+});
+
 app.get('/', (req, res) => res.send('HrivaHR Backend is Live 🚀'));
 
 /* ── Health check ──────────────────────────────────────────────── */
@@ -59,7 +78,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
     env_loaded: {
-      RESEND_API_KEY: !!process.env.RESEND_API_KEY,
+      EMAIL_USER:     !!process.env.EMAIL_USER,
+      EMAIL_PASS:     !!process.env.EMAIL_PASS,
       FIREBASE_ADMIN: !!admin.apps.length,
       FRONTEND_URL:   process.env.FRONTEND_URL || 'https://hrivahr.web.app',
     },
@@ -252,30 +272,17 @@ app.post('/api/invite', async (req, res) => {
 </html>`;
 
   try {
-    // Resend HTTP API — works on Render (HTTPS, not SMTP)
-    const response = await fetch('https://api.resend.com/emails', {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        from:    'HrivaHR <onboarding@resend.dev>',
-        to:      [email],
-        subject: `Welcome to HrivaHR, ${name}! Set up your account 🎉`,
-        html,
-      }),
-    });
+    // Nodemailer — Works on Localhost & Render
+    const mailOptions = {
+      from:    `HrivaHR <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `Welcome to HrivaHR, ${name}! Set up your account 🎉`,
+      html,
+    };
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('Resend error:', result);
-      return res.status(500).json({ error: 'Email send failed', detail: result });
-    }
-
-    console.log('Email sent via Resend:', result.id);
-    res.status(200).json({ success: true, id: result.id });
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent via Nodemailer:', info.messageId);
+    res.status(200).json({ success: true, id: info.messageId });
 
   } catch (err) {
     console.error('Invite email error:', err);
@@ -334,14 +341,13 @@ app.post('/api/email/leave-status', async (req, res) => {
 </body></html>`;
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: 'HrivaHR <onboarding@resend.dev>', to: [email], subject: `Leave Request ${label} – ${leaveType} (${days} day${days > 1 ? 's' : ''})`, html }),
+    const info = await transporter.sendMail({
+      from:    `HrivaHR <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `Leave Request ${label} – ${leaveType} (${days} day${days > 1 ? 's' : ''})`,
+      html
     });
-    const result = await response.json();
-    if (!response.ok) return res.status(500).json({ error: 'Email failed', detail: result });
-    res.json({ success: true, id: result.id });
+    res.json({ success: true, id: info.messageId });
   } catch (err) {
     res.status(500).json({ error: 'Failed', detail: err.message });
   }
@@ -395,14 +401,13 @@ app.post('/api/email/payslip', async (req, res) => {
 </body></html>`;
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: 'HrivaHR <onboarding@resend.dev>', to: [email], subject: `Your ${month} Payslip is Ready 💰`, html }),
+    const info = await transporter.sendMail({
+      from:    `HrivaHR <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `Your ${month} Payslip is Ready 💰`,
+      html
     });
-    const result = await response.json();
-    if (!response.ok) return res.status(500).json({ error: 'Email failed', detail: result });
-    res.json({ success: true, id: result.id });
+    res.json({ success: true, id: info.messageId });
   } catch (err) {
     res.status(500).json({ error: 'Failed', detail: err.message });
   }
@@ -453,14 +458,13 @@ app.post('/api/email/birthday', async (req, res) => {
 </body></html>`;
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: 'HrivaHR <onboarding@resend.dev>', to: [email], subject: `${emoji} ${title}`, html }),
+    const info = await transporter.sendMail({
+      from:    `HrivaHR <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `${emoji} ${title}`,
+      html
     });
-    const result = await response.json();
-    if (!response.ok) return res.status(500).json({ error: 'Email failed', detail: result });
-    res.json({ success: true, id: result.id });
+    res.json({ success: true, id: info.messageId });
   } catch (err) {
     res.status(500).json({ error: 'Failed', detail: err.message });
   }
@@ -513,14 +517,13 @@ app.post('/api/email/appraisal-reminder', async (req, res) => {
 </body></html>`;
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: 'HrivaHR <onboarding@resend.dev>', to: [email], subject: `⏰ Appraisal Review Due – ${cycleName}`, html }),
+    const info = await transporter.sendMail({
+      from:    `HrivaHR <${process.env.EMAIL_USER}>`,
+      to:      email,
+      subject: `⏰ Appraisal Review Due – ${cycleName}`,
+      html
     });
-    const result = await response.json();
-    if (!response.ok) return res.status(500).json({ error: 'Email failed', detail: result });
-    res.json({ success: true, id: result.id });
+    res.json({ success: true, id: info.messageId });
   } catch (err) {
     res.status(500).json({ error: 'Failed', detail: err.message });
   }
