@@ -21,6 +21,7 @@
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "firebase": "^12.11.0",
+    "firebase-admin": "^13.7.0",
     "framer-motion": "^12.38.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.477.0",
