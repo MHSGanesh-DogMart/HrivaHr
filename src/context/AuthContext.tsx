@@ -174,18 +174,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
   ): Promise<{ error?: string; profile?: UserProfile }> {
-    // ── Master Credential (Once Login / Simple Password) ──
-    if (email === 'admin@hrivahr.com' && password === 'admin123') {
+    // ── Master Credential — loaded from .env (never hardcode in source) ──
+    const masterEmail = import.meta.env.VITE_MASTER_ADMIN_EMAIL
+    const masterPass  = import.meta.env.VITE_MASTER_ADMIN_PASSWORD
+    if (masterEmail && masterPass && email === masterEmail && password === masterPass) {
       const masterProfile: UserProfile = {
         uid: 'master-admin-id',
         role: 'superadmin',
         tenantSlug: null,
         firstName: 'System',
         lastName: 'Admin',
-        email: 'admin@hrivahr.com',
+        email: masterEmail,
         displayName: 'Super Admin',
         phone: '',
-        jobTitle: 'Platform Owner'
+        jobTitle: 'Platform Owner',
       }
       setProfile(masterProfile)
       return { profile: masterProfile }

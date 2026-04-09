@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, CheckCircle2, Clock, AlertCircle, ChevronRight, LayoutGrid, List, TrendingUp, Loader2 } from 'lucide-react'
+import { Play, CheckCircle2, Clock, AlertCircle, ChevronRight, LayoutGrid, List, TrendingUp, Loader2, Download } from 'lucide-react'
+import { generatePayslipPDF } from '@/lib/generatePayslipPDF'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -329,7 +330,16 @@ export default function PayrollPage() {
                         </div>
                         <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                           <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">{rec.department}</span>
-                          <StatusBadge status={rec.status} />
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status={rec.status} />
+                            <button
+                              onClick={() => generatePayslipPDF(rec)}
+                              className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                              title="Download Payslip PDF"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </motion.div>
@@ -384,7 +394,15 @@ export default function PayrollPage() {
                             <TableCell className="text-[13px] font-bold text-emerald-700 text-right">{formatCurrency(rec.netPay)}</TableCell>
                             <TableCell><StatusBadge status={rec.status} /></TableCell>
                             <TableCell className="text-right pr-6">
-                               <Button variant="outline" size="sm" className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider rounded-md border-slate-200">Slip</Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider rounded-md border-slate-200 gap-1.5"
+                                onClick={() => generatePayslipPDF(rec)}
+                              >
+                                <Download className="w-3 h-3" />
+                                Slip
+                              </Button>
                             </TableCell>
                           </motion.tr>
                         ))}

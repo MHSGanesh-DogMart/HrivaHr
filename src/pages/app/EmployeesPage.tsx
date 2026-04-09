@@ -3,8 +3,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  Users, Loader2, X, AlertCircle, Filter, Upload,
+  Users, Loader2, X, AlertCircle, Filter, Upload, FolderOpen,
 } from 'lucide-react'
+import DocumentsTab from '@/components/employees/DocumentsTab'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -198,6 +199,7 @@ export default function EmployeesPage() {
   /* ── Dialog state ────────────────────────────────────────────── */
   const [dialogOpen, setDialogOpen]       = useState(false)
   const [showBulkImport, setShowBulkImport] = useState(false)
+  const [docsEmployee, setDocsEmployee]   = useState<FirestoreEmployee | null>(null)
   const [editingId, setEditingId]         = useState<string | null>(null)
   const [activeTab, setActiveTab]   = useState('basic')
   const [formData, setFormData]     = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM })
@@ -618,6 +620,13 @@ export default function EmployeesPage() {
                               title="Edit employee"
                             >
                               <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDocsEmployee(emp)}
+                              className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
+                              title="View Documents"
+                            >
+                              <FolderOpen className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleDelete(emp)}
@@ -1342,6 +1351,28 @@ export default function EmployeesPage() {
           onImported={(count) => { setShowBulkImport(false); if (count > 0) fetchEmployees() }}
         />
       )}
+
+      {/* ── Documents Dialog ──────────────────────────────────────── */}
+      <Dialog open={!!docsEmployee} onOpenChange={(open) => { if (!open) setDocsEmployee(null) }}>
+        <DialogContent className="max-w-2xl rounded-lg border-slate-200 max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="border-b border-slate-100 pb-3 mb-1">
+            <DialogTitle className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
+              <FolderOpen className="w-4 h-4 text-blue-500" />
+              Documents — {docsEmployee?.name}
+              <span className="text-[11px] font-bold text-slate-400 ml-1">{docsEmployee?.employeeId}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {docsEmployee && tenantSlug && (
+            <DocumentsTab
+              tenantSlug={tenantSlug}
+              employeeDocId={docsEmployee.id}
+              employeeId={docsEmployee.employeeId}
+              employeeName={docsEmployee.name}
+              canManage={isAdmin}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

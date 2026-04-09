@@ -14,7 +14,21 @@ try {
 }
 
 const app = express();
-app.use(cors());
+
+// Restrict CORS to known origins only
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no origin (e.g. server-to-server, curl)
+    if (!origin) return cb(null, true)
+    if (allowedOrigins.includes(origin)) return cb(null, true)
+    cb(new Error(`CORS blocked: ${origin}`))
+  },
+  credentials: true,
+}))
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('HrivaHR Backend is Live 🚀'));

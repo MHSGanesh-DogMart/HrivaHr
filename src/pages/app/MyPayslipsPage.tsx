@@ -15,15 +15,16 @@
  * and removes it on unmount, so no manual CSS changes are needed.
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  DollarSign, ChevronDown, ChevronUp, Printer,
+  DollarSign, ChevronDown, ChevronUp, Download,
   Loader2, ChevronRight, TrendingUp, Calendar,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { getMyPayroll, type FirestorePayroll } from '@/services/payrollService'
-import { getEmployees, type FirestoreEmployee } from '@/services/employeeService'
+import { getEmployees } from '@/services/employeeService'
+import { generatePayslipPDF } from '@/lib/generatePayslipPDF'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -141,17 +142,17 @@ function PayslipDetail({ p, onPrint }: { p: FirestorePayroll; onPrint: () => voi
         </p>
       </div>
 
-      {/* Print / Download button */}
+      {/* Download PDF button */}
       {p.status === 'Processed' && (
-        <div className="flex justify-end print:hidden">
+        <div className="flex justify-end">
           <Button
             variant="outline"
             size="sm"
             onClick={onPrint}
             className="gap-1.5 text-[11px] font-bold uppercase tracking-widest border-slate-200 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all"
           >
-            <Printer className="w-3.5 h-3.5" />
-            Download / Print
+            <Download className="w-3.5 h-3.5" />
+            Download PDF
           </Button>
         </div>
       )}
@@ -241,27 +242,9 @@ export default function MyPayslipsPage() {
   const { profile } = useAuth()
   const tenantSlug  = profile?.tenantSlug ?? ''
 
-  const [empRecord,  setEmpRecord]  = useState<FirestoreEmployee | null>(null)
   const [payslips,   setPayslips]   = useState<FirestorePayroll[]>([])
   const [loading,    setLoading]    = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  /* Inject print CSS once on mount */
-  const styleRef = useRef<HTMLStyleElement | null>(null)
-  useEffect(() => {
-    const style    = document.createElement('style')
-    style.innerHTML = `
-      @media print {
-        body > * { display: none !important; }
-        #payslip-print-area { display: block !important; position: fixed; top: 0; left: 0; width: 100%; }
-        #payslip-print-area .print\\:hidden { display: none !important; }
-        #payslip-print-area .hidden.print\\:block { display: block !important; }
-      }
-    `
-    document.head.appendChild(style)
-    styleRef.current = style
-    return () => { styleRef.current?.remove() }
-  }, [])
 
   useEffect(() => {
     if (!tenantSlug || !profile) return
@@ -270,7 +253,6 @@ export default function MyPayslipsPage() {
       try {
         const emps  = await getEmployees(tenantSlug)
         const myEmp = emps.find(e => e.email.toLowerCase() === profile!.email.toLowerCase()) ?? null
-        setEmpRecord(myEmp)
         if (myEmp) {
           const records = await getMyPayroll(tenantSlug, myEmp.id)
           setPayslips(records)
@@ -293,9 +275,7 @@ export default function MyPayslipsPage() {
     : 0
 
   function handlePrint(p: FirestorePayroll) {
-    // Temporarily expand only the printed payslip, then trigger print
-    setExpandedId(p.id)
-    setTimeout(() => window.print(), 300)
+    generatePayslipPDF(p, 'HrivaHR')
   }
 
   /* ── Loading ───────────────────────────────────────────────────── */

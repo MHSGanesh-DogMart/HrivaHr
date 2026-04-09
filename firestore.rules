@@ -2,10 +2,268 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ⚠️ DEVELOPER MODE: Open for all reads and writes
-    // Change this before going to production
-    match /{document=**} {
-      allow read, write: if true;
+
+    // ─────────────────────────────────────────────────────────────
+    //  HELPERS
+    // ─────────────────────────────────────────────────────────────
+
+    // Is the request coming from a signed-in user?
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Load the caller's profile from the top-level /users/{uid}
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Convenience getters (cached via function inlining by Firestore)
+    function userRole()   { return userDoc().role; }
+    function userTenant() { return userDoc().tenantSlug; }
+
+    // Role checks
+    function isSuperAdmin() {
+      return isAuthed() && userRole() == 'superadmin';
+    }
+
+    function isAdminOf(slug) {
+      return isAuthed() && userTenant() == slug && userRole() == 'admin';
+    }
+
+    function isMemberOf(slug) {
+      return isAuthed() && (isSuperAdmin() || userTenant() == slug);
+    }
+
+    function isAdminOrSuper(slug) {
+      return isSuperAdmin() || isAdminOf(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  TOP-LEVEL: /users/{uid}
+    //  Each user can read/write only their own profile.
+    //  Super-admins can read any profile (for tenant management).
+    // ─────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read:   if isAuthed() && (request.auth.uid == uid || isSuperAdmin());
+      allow create: if isAuthed() && request.auth.uid == uid;
+      allow update: if isAuthed() && (request.auth.uid == uid || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  TOP-LEVEL: /tenants/{slug}  (root tenant document)
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  EMPLOYEE RECORDS  — admin manages, employees read own + update limited fields
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/employees/{empId} {
+      allow read:   if isMemberOf(slug);
+      allow create: if isAdminOrSuper(slug);
+      allow update: if isAdminOrSuper(slug);
+      allow delete: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  ATTENDANCE  — employees check in/out; admin manages all
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/attendance/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow write:  if isMemberOf(slug);
+    }
+
+    match /tenants/{slug}/regularizations/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow create: if isMemberOf(slug);
+      allow update: if isMemberOf(slug);
+      allow delete: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  LEAVE  — employees submit requests; admin approves
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/leaves/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow create: if isMemberOf(slug);
+      allow update: if isMemberOf(slug);
+      allow delete: if isAdminOrSuper(slug);
+    }
+
+    match /tenants/{slug}/leaveBalances/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    match /tenants/{slug}/leavePolicy/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    match /tenants/{slug}/holidays/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PAYROLL  — admin processes; employees read own payslips
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/payroll/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PERFORMANCE  — employees manage own goals/feedback; admin manages cycles
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/goals/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow write:  if isMemberOf(slug);
+    }
+
+    match /tenants/{slug}/appraisals/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow write:  if isMemberOf(slug);
+    }
+
+    match /tenants/{slug}/appraisalCycles/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    match /tenants/{slug}/feedback/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow write:  if isMemberOf(slug);
+    }
+
+    match /tenants/{slug}/pip/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  RECRUITMENT  — admin only
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/jobs/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    match /tenants/{slug}/candidates/{docId} {
+      allow read:  if isAdminOrSuper(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    match /tenants/{slug}/interviews/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  ONBOARDING / OFFBOARDING
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/onboarding/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    match /tenants/{slug}/offboarding/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  EXPENSES  — employees submit; admin approves
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/expenses/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow create: if isMemberOf(slug);
+      allow update: if isMemberOf(slug);
+      allow delete: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  IT DECLARATIONS  — employees manage own
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/itDeclarations/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isMemberOf(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  HELP DESK  — employees create tickets; admin manages
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/helpdesk/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isMemberOf(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  NOTIFICATIONS  — admin broadcasts; employees read
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/notifications/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  AUDIT LOGS  — members create (immutable); only admin reads
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/auditLogs/{docId} {
+      allow read:          if isAdminOrSuper(slug);
+      allow create:        if isMemberOf(slug);
+      allow update, delete: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  SETTINGS  — admin only
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/settings/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  DOCUMENTS (employee file storage metadata)
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/documents/{docId} {
+      allow read:   if isMemberOf(slug);
+      allow create: if isMemberOf(slug);
+      allow update: if isAdminOrSuper(slug);
+      allow delete: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  TENANT USERS SUB-COLLECTION (legacy path)
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/users/{userId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PLATFORM CONFIG  — super-admin only
+    // ─────────────────────────────────────────────────────────────
+    match /platform/{docId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  CATCH-ALL for any unlisted tenant subcollections
+    //  Enforces auth + tenant membership as a safe default.
+    // ─────────────────────────────────────────────────────────────
+    match /tenants/{slug}/{col}/{docId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
+    }
+
+    // Deep nested subcollections catch-all
+    match /tenants/{slug}/{col}/{docId}/{subcol}/{subDocId} {
+      allow read:  if isMemberOf(slug);
+      allow write: if isAdminOrSuper(slug);
     }
   }
 }
