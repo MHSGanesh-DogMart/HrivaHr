@@ -29,6 +29,12 @@ export interface GpsLocation {
   address?:  string
 }
 
+export interface AttendanceSession {
+  in:    string   // HH:MM
+  out:   string   // HH:MM or ''
+  hours: number
+}
+
 export interface FirestoreAttendance {
   id:            string          // Firestore doc ID: {date}_{empId}
   employeeId:    string          // EMP-001
@@ -36,14 +42,15 @@ export interface FirestoreAttendance {
   employeeName:  string
   department:    string
   date:          string          // YYYY-MM-DD
-  clockIn:       string          // HH:MM (24h) or ''
-  clockOut:      string          // HH:MM (24h) or ''
-  hoursWorked:   number
+  clockIn:       string          // HH:MM (24h) — first session in
+  clockOut:      string          // HH:MM (24h) — last session out, '' if active
+  hoursWorked:   number          // sum of all closed sessions
   overtimeHours: number          // hours beyond 8h standard
   status:        AttendanceStatus
   method:        AttendanceMethod
   isWFH:         boolean
   isRegularized: boolean
+  sessions:      AttendanceSession[] // all in/out pairs for the day
   gpsIn?:        GpsLocation
   gpsOut?:       GpsLocation
   notes?:        string          // admin note
@@ -182,7 +189,16 @@ export async function getTodayRecordForEmployee(
   return { id: snap.id, ...snap.data() } as FirestoreAttendance
 }
 
-/* ── Clock In (with optional GPS) ─────────────────────────────── */
+/* ── Active session helper ─────────────────────────────────────── */
+export function hasActiveSession(record: FirestoreAttendance | null): boolean {
+  if (!record) return false
+  const sessions = record.sessions ?? []
+  if (sessions.length > 0) return sessions[sessions.length - 1].out === ''
+  // Backward-compat for old records without sessions array
+  return !!record.clockIn && !record.clockOut
+}
+
+/* ── Clock In (with optional GPS) — supports multiple sessions ─── */
 export async function clockIn(
   tenantSlug: string,
   params: {
@@ -201,7 +217,6 @@ export async function clockIn(
   const [h, m]  = timeIn.split(':').map(Number)
   const isLate  = h > 9 || (h === 9 && m > 30)
   const isWFH   = params.isWFH ?? false
-  let   status: AttendanceStatus = isWFH ? 'WFH' : (isLate ? 'Late' : 'Present')
   const docId   = buildDocId(date, params.employeeId)
   const method: AttendanceMethod = params.method ?? (params.useGps ? 'GPS' : 'Manual')
 
@@ -210,50 +225,86 @@ export async function clockIn(
     try { gpsIn = await getCurrentLocation() } catch { /* GPS unavailable — proceed without */ }
   }
 
-  await setDoc(doc(db, 'tenants', tenantSlug, 'attendance', docId), {
-    employeeId:    params.employeeId,
-    employeeDocId: params.employeeDocId,
-    employeeName:  params.employeeName,
-    department:    params.department,
-    date,
-    clockIn:       timeIn,
-    clockOut:      '',
-    hoursWorked:   0,
-    overtimeHours: 0,
-    status,
-    method,
-    isWFH,
-    isRegularized: false,
-    ...(gpsIn ? { gpsIn } : {}),
-    createdAt:     serverTimestamp(),
-    updatedAt:     serverTimestamp(),
-  })
+  // Check if a record already exists for today (re-clock-in after clock-out)
+  const existingSnap = await getDoc(doc(db, 'tenants', tenantSlug, 'attendance', docId))
+
+  if (existingSnap.exists()) {
+    const existing = existingSnap.data() as FirestoreAttendance
+    const sessions: AttendanceSession[] = existing.sessions
+      ? [...existing.sessions]
+      : (existing.clockIn ? [{ in: existing.clockIn, out: existing.clockOut ?? '', hours: existing.hoursWorked ?? 0 }] : [])
+
+    // Already clocked in with open session — do nothing
+    if (sessions.length > 0 && sessions[sessions.length - 1].out === '') return docId
+
+    // Append new session
+    sessions.push({ in: timeIn, out: '', hours: 0 })
+
+    await updateDoc(doc(db, 'tenants', tenantSlug, 'attendance', docId), {
+      sessions,
+      clockOut:  '',   // reset top-level clockOut so UI knows session is active
+      ...(gpsIn ? { gpsIn } : {}),
+      updatedAt: serverTimestamp(),
+    })
+  } else {
+    // First clock-in of the day
+    const status: AttendanceStatus = isWFH ? 'WFH' : (isLate ? 'Late' : 'Present')
+    await setDoc(doc(db, 'tenants', tenantSlug, 'attendance', docId), {
+      employeeId:    params.employeeId,
+      employeeDocId: params.employeeDocId,
+      employeeName:  params.employeeName,
+      department:    params.department,
+      date,
+      clockIn:       timeIn,
+      clockOut:      '',
+      hoursWorked:   0,
+      overtimeHours: 0,
+      status,
+      method,
+      isWFH,
+      isRegularized: false,
+      sessions:      [{ in: timeIn, out: '', hours: 0 }],
+      ...(gpsIn ? { gpsIn } : {}),
+      createdAt:     serverTimestamp(),
+      updatedAt:     serverTimestamp(),
+    })
+  }
 
   return docId
 }
 
-/* ── Clock Out ─────────────────────────────────────────────────── */
+/* ── Clock Out — closes the active session, sums total hours ────── */
 export async function clockOut(
   tenantSlug: string,
   employeeId: string,
   options?: { useGps?: boolean },
 ): Promise<void> {
-  const date     = todayString()
-  const docId    = buildDocId(date, employeeId)
-  const now      = new Date()
-  const timeOut  = formatTime(now)
+  const date    = todayString()
+  const docId   = buildDocId(date, employeeId)
+  const now     = new Date()
+  const timeOut = formatTime(now)
 
   const snap = await getDoc(doc(db, 'tenants', tenantSlug, 'attendance', docId))
-  let hoursWorked   = 0
-  let overtimeHours = 0
+  if (!snap.exists()) return
 
-  if (snap.exists()) {
-    const data     = snap.data()
-    const [ih, im] = (data.clockIn as string).split(':').map(Number)
-    const [oh, om] = timeOut.split(':').map(Number)
-    hoursWorked    = Math.round(((oh * 60 + om) - (ih * 60 + im)) / 60 * 100) / 100
-    overtimeHours  = calcOvertime(hoursWorked)
-  }
+  const data     = snap.data() as FirestoreAttendance
+  const sessions: AttendanceSession[] = data.sessions
+    ? [...data.sessions]
+    : (data.clockIn ? [{ in: data.clockIn, out: '', hours: 0 }] : [])
+
+  // Find last open session
+  const lastIdx = sessions.length - 1
+  if (lastIdx < 0 || sessions[lastIdx].out !== '') return // nothing open
+
+  const [ih, im]   = sessions[lastIdx].in.split(':').map(Number)
+  const [oh, om]   = timeOut.split(':').map(Number)
+  const sessionHrs = Math.round(((oh * 60 + om) - (ih * 60 + im)) / 60 * 100) / 100
+
+  sessions[lastIdx] = { ...sessions[lastIdx], out: timeOut, hours: Math.max(sessionHrs, 0) }
+
+  // Total hours = sum of all closed sessions
+  const totalHours  = Math.round(sessions.reduce((sum, s) => sum + (s.hours || 0), 0) * 100) / 100
+  const overtimeHrs = calcOvertime(totalHours)
 
   let gpsOut: GpsLocation | undefined
   if (options?.useGps) {
@@ -261,9 +312,10 @@ export async function clockOut(
   }
 
   await updateDoc(doc(db, 'tenants', tenantSlug, 'attendance', docId), {
+    sessions,
     clockOut:      timeOut,
-    hoursWorked,
-    overtimeHours,
+    hoursWorked:   totalHours,
+    overtimeHours: overtimeHrs,
     ...(gpsOut ? { gpsOut } : {}),
     updatedAt:     serverTimestamp(),
   })

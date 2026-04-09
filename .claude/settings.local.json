@@ -32,7 +32,10 @@
       "Bash(curl -s -X POST https://hrivahr.onrender.com/api/invite -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"m.hemanth517@gmail.com\"\",\"\"firstName\"\":\"\"Test\"\",\"\"tenantSlug\"\":\"\"petsaathi\"\",\"\"employeeId\"\":\"\"EMP-001\"\"}\")",
       "Read(//c/Users/lapto/AppData/Local/Temp/claude/D--Hemanth-Play-Store-Hr-Portal/4c50c4fd-4d90-4861-a490-17ce10846415/tasks/**)",
       "Bash(curl -v -X POST \"https://hrivahr.onrender.com/api/invite\" -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"m.hemanth517@gmail.com\"\",\"\"firstName\"\":\"\"Test\"\",\"\"tenantSlug\"\":\"\"petsaathi\"\",\"\"employeeId\"\":\"\"EMP-001\"\"}\")",
-      "Bash(curl --max-time 25 -X POST \"https://hrivahr.onrender.com/api/invite\" -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"m.hemanth517@gmail.com\"\",\"\"firstName\"\":\"\"Test\"\",\"\"tenantSlug\"\":\"\"petsaathi\"\",\"\"employeeId\"\":\"\"EMP-001\"\"}')"
+      "Bash(curl --max-time 25 -X POST \"https://hrivahr.onrender.com/api/invite\" -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"m.hemanth517@gmail.com\"\",\"\"firstName\"\":\"\"Test\"\",\"\"tenantSlug\"\":\"\"petsaathi\"\",\"\"employeeId\"\":\"\"EMP-001\"\"}')",
+      "Bash(wc -l \"D:\\\\Hemanth Play Store\\\\Hr Portal\\\\src\\\\services\"/*.ts)",
+      "Bash(find \"D:\\\\Hemanth Play Store\\\\Hr Portal\\\\src\\\\pages\\\\app\" -name \"*.tsx\" -exec wc -l {} +)",
+      "Bash(sort -k2)"
     ]
   }
 }
