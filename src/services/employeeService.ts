@@ -10,7 +10,7 @@
 
 import {
   collection, addDoc, getDocs, updateDoc, deleteDoc,
-  doc, query, orderBy, serverTimestamp, getDoc,
+  doc, query, orderBy, serverTimestamp, getDoc, where,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
@@ -178,6 +178,13 @@ export async function getEmployee(
   const snap = await getDoc(doc(db, 'tenants', tenantSlug, 'employees', docId))
   if (!snap.exists()) return null
   return { id: snap.id, ...snap.data() } as FirestoreEmployee
+}
+
+/** Check if email is already in use within a tenant */
+export async function checkEmailExists(tenantSlug: string, email: string): Promise<boolean> {
+  const q = query(empColRef(tenantSlug), where('email', '==', email))
+  const snap = await getDocs(q)
+  return !snap.empty
 }
 
 /* ── Add employee ──────────────────────────────────────────────── */

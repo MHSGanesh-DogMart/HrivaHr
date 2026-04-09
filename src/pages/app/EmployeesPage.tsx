@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import {
   getEmployees, addEmployee, updateEmployee, deleteEmployee, generateEmployeeId,
-  type FirestoreEmployee, type EmployeeStatus,
+  checkEmailExists, type FirestoreEmployee, type EmployeeStatus,
   DEPARTMENTS, DESIGNATIONS, INDIAN_STATES,
 } from '@/services/employeeService'
 import BulkImportModal from '@/components/employees/BulkImportModal'
@@ -207,6 +207,11 @@ export default function EmployeesPage() {
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState('')
 
+  /* ── Delete confirmation state ───────────────────────────────── */
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deletingEmp, setDeletingEmp]             = useState<FirestoreEmployee | null>(null)
+  const [isDeleting, setIsDeleting]               = useState(false)
+
   /* ── Fetch ───────────────────────────────────────────────────── */
   const fetchEmployees = useCallback(async () => {
     if (!tenantSlug) return
@@ -356,23 +361,43 @@ export default function EmployeesPage() {
       if (editingId) {
         await updateEmployee(tenantSlug, editingId, payload)
       } else {
+        // PRE-CHECK: Duplicate email in this tenant
+        const emailTaken = await checkEmailExists(tenantSlug, formData.email)
+        if (emailTaken) {
+          setSaveError('An employee with this email already exists in your company.')
+          setSaving(false)
+          return
+        }
+
         const docId = await addEmployee(tenantSlug, payload)
 
-        // Send invite email via Firebase Auth (no backend needed — 100% reliable)
-        inviteEmployee({
-          tenantSlug,
-          employeeDocId: docId,
-          employeeId:    empId,
-          email:         formData.email,
-          firstName:     formData.firstName,
-          lastName:      formData.lastName,
-          name:          `${formData.firstName} ${formData.lastName}`.trim(),
-          designation:   formData.designation,
-          phone:         formData.phone,
-        }).catch(err => {
-          // Non-blocking — employee is saved even if email fails
-          console.warn('Invite email error (non-critical):', err?.message ?? err)
-        })
+        try {
+          // Send invite email via Firebase Auth (Blocking & Rollback enabled)
+          await inviteEmployee({
+            tenantSlug,
+            employeeDocId: docId,
+            employeeId:    empId,
+            email:         formData.email,
+            firstName:     formData.firstName,
+            lastName:      formData.lastName,
+            name:          `${formData.firstName} ${formData.lastName}`.trim(),
+            designation:   formData.designation,
+            phone:         formData.phone,
+          })
+        } catch (inviteErr: any) {
+          console.error('Invitation failed, rolling back employee creation:', inviteErr)
+          
+          // ROLLBACK: Delete the employee doc we just created
+          await deleteEmployee(tenantSlug, docId)
+          
+          // Specific user-friendly message
+          if (inviteErr?.code === 'auth/email-already-in-use') {
+            setSaveError('This email is already registered with another user. Please use a different email.')
+          } else {
+            setSaveError(`Invitation failed: ${inviteErr?.message || 'Unknown error'}`)
+          }
+          return // Stop here, don't close the dialog
+        }
       }
 
       setDialogOpen(false)
@@ -386,13 +411,50 @@ export default function EmployeesPage() {
 
   /* ── Delete ──────────────────────────────────────────────────── */
   async function handleDelete(emp: FirestoreEmployee) {
-    if (!window.confirm(`Delete ${emp.name || emp.firstName}? This action cannot be undone.`)) return
-    if (!tenantSlug) return
+    setDeletingEmp(emp)
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDelete() {
+    if (!deletingEmp || !tenantSlug) return
+    setIsDeleting(true)
     try {
-      await deleteEmployee(tenantSlug, emp.id)
+      await deleteEmployee(tenantSlug, deletingEmp.id)
+      setDeleteConfirmOpen(false)
+      setDeletingEmp(null)
       await fetchEmployees()
     } catch (err) {
       console.error('Delete failed', err)
+      alert('Failed to delete employee. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  /* ── Test Email ──────────────────────────────────────────────── */
+  async function handleTestEmail() {
+    if (!tenantSlug) return
+    const testEmail = prompt('Enter email to send test invite:')
+    if (!testEmail) return
+
+    setSaving(true)
+    try {
+      await inviteEmployee({
+        tenantSlug,
+        employeeDocId: 'test-doc-id',
+        employeeId:    'TEST-001',
+        email:         testEmail,
+        firstName:     'Test',
+        lastName:      'User',
+        name:          'Test User',
+        designation:   'Tester',
+        phone:         '0000000000',
+      })
+      alert('Test invite sent! Please check the inbox (and spam).')
+    } catch (err: any) {
+      alert(`Test failed: ${err.message}`)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -512,6 +574,13 @@ export default function EmployeesPage() {
               >
                 <Upload className="w-4 h-4" />
                 Bulk Import
+              </Button>
+              <Button
+                onClick={handleTestEmail}
+                variant="outline"
+                className="h-9 text-sm px-3 gap-1.5 border-slate-200"
+              >
+                Test Email
               </Button>
               <Button
                 onClick={openAdd}
@@ -1371,6 +1440,47 @@ export default function EmployeesPage() {
               canManage={isAdmin}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ─────────────────────────────── */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="w-5 h-5" />
+              Confirm Deletion
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to delete <strong>{deletingEmp?.name}</strong>?
+              This will permanently remove their record from the HR portal. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={isDeleting}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="flex-1 bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Yes, Delete'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

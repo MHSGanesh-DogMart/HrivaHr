@@ -53,40 +53,40 @@ export async function inviteEmployee(p: InviteEmployeeParams): Promise<void> {
     'Tmp_' + Math.random().toString(36).slice(-8) +
     Math.random().toString(36).slice(-4).toUpperCase() + '!'
 
-  const cred = await createUserWithEmailAndPassword(
-    secondaryAuth,
-    p.email,
-    tempPassword,
-  )
-  const uid = cred.user.uid
-
-  // ── 3. Create the Firestore user profile ─────────────────────────
-  await setDoc(doc(db, 'users', uid), {
-    uid,
-    role:        'employee',
-    tenantSlug:  p.tenantSlug,
-    firstName:   p.firstName,
-    lastName:    p.lastName,
-    email:       p.email,
-    displayName: p.name,
-    phone:       p.phone       || '',
-    jobTitle:    p.designation || '',
-  })
-
-  // ── 4. Link the employee Firestore doc to the Firebase Auth UID ──
-  await updateDoc(
-    doc(db, 'tenants', p.tenantSlug, 'employees', p.employeeDocId),
-    { uid, authStatus: 'active' },
-  )
-
-  // ── 5. Send beautiful custom invite email via Render/Resend ─────
-  //    Falls back to Firebase reset email if server is unreachable
-  const apiBase  = 'https://hrivahr.onrender.com'
-  const setupUrl =
-    (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
-    `/set-password?email=${encodeURIComponent(p.email)}&tenant=${encodeURIComponent(p.tenantSlug)}&empId=${encodeURIComponent(p.employeeDocId)}`
-
   try {
+    const cred = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      p.email,
+      tempPassword,
+    )
+    const uid = cred.user.uid
+
+    // ── 3. Create the Firestore user profile ─────────────────────────
+    await setDoc(doc(db, 'users', uid), {
+      uid,
+      role:        'employee',
+      tenantSlug:  p.tenantSlug,
+      firstName:   p.firstName,
+      lastName:    p.lastName,
+      email:       p.email,
+      displayName: p.name,
+      phone:       p.phone       || '',
+      jobTitle:    p.designation || '',
+    })
+
+    // ── 4. Link the employee Firestore doc to the Firebase Auth UID ──
+    await updateDoc(
+      doc(db, 'tenants', p.tenantSlug, 'employees', p.employeeDocId),
+      { uid, authStatus: 'active' },
+    )
+
+    // ── 5. Send beautiful custom invite email via Render/Resend ─────
+    //    Falls back to Firebase reset email if server is unreachable
+    const apiBase  = 'https://hrivahr-backend.onrender.com'
+    const setupUrl =
+      (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
+      `/set-password?email=${encodeURIComponent(p.email)}&tenant=${encodeURIComponent(p.tenantSlug)}&empId=${encodeURIComponent(p.employeeDocId)}`
+
     const res = await fetch(`${apiBase}/api/invite`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -98,21 +98,19 @@ export async function inviteEmployee(p: InviteEmployeeParams): Promise<void> {
         setupUrl,
       }),
     })
-    if (!res.ok) {
+    if (res.ok) {
+      console.log('✅ Invite email sent via Resend')
+    } else {
       const err = await res.json().catch(() => ({}))
       console.warn('Invite API non-OK, falling back to Firebase email:', err)
-      throw new Error('server-error')
+      // Fallback: Firebase's own password-reset email (always works)
+      const continueUrl =
+        (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
+        `/${p.tenantSlug}/login`
+      await sendPasswordResetEmail(secondaryAuth, p.email, { url: continueUrl })
     }
-    console.log('✅ Invite email sent via Resend')
-  } catch {
-    // Fallback: Firebase's own password-reset email (always works)
-    console.warn('Falling back to Firebase sendPasswordResetEmail')
-    const continueUrl =
-      (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
-      `/${p.tenantSlug}/login`
-    await sendPasswordResetEmail(secondaryAuth, p.email, { url: continueUrl })
+  } finally {
+    // ── 6. Sign out the secondary app (keeps admin session clean) ────
+    await secondaryAuth.signOut()
   }
-
-  // ── 6. Sign out the secondary app (keeps admin session clean) ────
-  await secondaryAuth.signOut()
 }

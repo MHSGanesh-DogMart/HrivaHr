@@ -5,7 +5,7 @@
  * emails via Resend. Falls back silently on server unreachable.
  */
 
-const SERVER = import.meta.env.VITE_SERVER_URL ?? 'https://hrivahr-backend.onrender.com'
+const SERVER = import.meta.env.VITE_SERVER_URL ?? 'https://hrivahr.onrender.com'
 
 async function post(path: string, body: Record<string, unknown>): Promise<void> {
   try {
