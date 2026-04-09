@@ -212,11 +212,29 @@ export async function updateEmployee(
   })
 }
 
-/* ── Delete employee ───────────────────────────────────────────── */
+/* ── Delete employee (Firestore + Auth) ────────────────────────── */
 export async function deleteEmployee(
   tenantSlug: string,
   docId: string,
 ): Promise<void> {
+  // 1. Get employee email for Auth deletion
+  const emp = await getEmployee(tenantSlug, docId)
+  if (emp?.email) {
+    try {
+      const apiBase = 'https://hrivahr.onrender.com'
+      await fetch(`${apiBase}/api/delete-employee-auth`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: emp.email }),
+      })
+      console.log(`[employeeService] Auth deletion request sent for ${emp.email}`)
+    } catch (err) {
+      console.error('[employeeService] Failed to call backend for Auth deletion:', err)
+      // We continue to delete Firestore anyway, but this might leave a ghost user
+    }
+  }
+
+  // 2. Delete Firestore record
   await deleteDoc(doc(db, 'tenants', tenantSlug, 'employees', docId))
 }
 

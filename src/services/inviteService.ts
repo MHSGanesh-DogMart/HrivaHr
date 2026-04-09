@@ -82,7 +82,7 @@ export async function inviteEmployee(p: InviteEmployeeParams): Promise<void> {
 
     // ── 5. Send beautiful custom invite email via Render/Resend ─────
     //    Falls back to Firebase reset email if server is unreachable
-    const apiBase  = 'https://hrivahr-backend.onrender.com'
+    const apiBase  = 'https://hrivahr.onrender.com'
     const setupUrl =
       (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
       `/set-password?email=${encodeURIComponent(p.email)}&tenant=${encodeURIComponent(p.tenantSlug)}&empId=${encodeURIComponent(p.employeeDocId)}`

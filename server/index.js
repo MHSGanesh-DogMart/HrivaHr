@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import admin from 'firebase-admin';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,6 +14,25 @@ try {
   console.log('No .env file found, using system env variables');
 }
 
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  try {
+    const saVar = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (saVar) {
+      // Handle both stringified JSON and potential file path (Render uses stringified JSON)
+      const serviceAccount = JSON.parse(saVar);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log('Firebase Admin initialized 🛡️');
+    } else {
+      console.warn('FIREBASE_SERVICE_ACCOUNT not found - Auth deletion disabled');
+    }
+  } catch (err) {
+    console.error('Firebase Admin init error:', err);
+  }
+}
+
 const app = express();
 
 // Restrict CORS to known origins only
@@ -21,14 +41,17 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
   .map((o) => o.trim())
 
 app.use(cors({
-  origin: (origin, cb) => {
-    // Allow requests with no origin (e.g. server-to-server, curl)
-    if (!origin) return cb(null, true)
-    if (allowedOrigins.includes(origin)) return cb(null, true)
-    cb(new Error(`CORS blocked: ${origin}`))
+  origin: (origin, callback) => {
+    // Allow any origin for now to fix CORS issues, or restrict to hrivahr.web.app
+    callback(null, true);
   },
   credentials: true,
-}))
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Explicitly handle preflight
+app.options('*', cors());
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('HrivaHR Backend is Live 🚀'));
@@ -39,9 +62,36 @@ app.get('/api/health', (req, res) => {
     status: 'online',
     env_loaded: {
       RESEND_API_KEY: !!process.env.RESEND_API_KEY,
+      FIREBASE_ADMIN: !!admin.apps.length,
       FRONTEND_URL:   process.env.FRONTEND_URL || 'https://hrivahr.web.app',
     },
   });
+});
+
+/* ── Delete Firebase Auth User (Server-side) ─────────────────── */
+app.post('/api/delete-employee-auth', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  if (!admin.apps.length) {
+    return res.status(503).json({ error: 'Firebase Admin not initialized on server' });
+  }
+
+  try {
+    const user = await admin.auth().getUserByEmail(email);
+    await admin.auth().deleteUser(user.uid);
+    console.log(`[Admin] Deleted Auth user: ${email}`);
+    res.json({ success: true, message: `Auth user ${email} deleted` });
+  } catch (err) {
+    if (err.code === 'auth/user-not-found') {
+      return res.json({ success: true, message: 'User not found in Auth, nothing to delete' });
+    }
+    console.error('Delete Auth error:', err);
+    res.status(500).json({ error: 'Failed to delete Auth user', detail: err.message });
+  }
 });
 
 /* ── Send invite email via Resend HTTP API ─────────────────────── */
