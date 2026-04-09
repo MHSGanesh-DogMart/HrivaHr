@@ -105,18 +105,32 @@ export async function inviteEmployee(p: InviteEmployeeParams): Promise<void> {
       })
 
       if (res.ok) {
-        console.log('✅ Invite email sent via Resend')
+        console.log('✅ Invite email sent via Resend/Nodemailer')
       } else {
-        const err = await res.json().catch(() => ({}))
-        console.warn('Invite API non-OK, falling back to Firebase email:', err)
-        const continueUrl =
-          (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
-          `/${p.tenantSlug}/login`
-        await sendPasswordResetEmail(secondaryAuth, p.email, { url: continueUrl })
+        const errDetail = await res.json().catch(() => ({}))
+        console.error('Email API failed:', errDetail)
+        
+        // Throw an error so the UI knows the "Beautiful" email failed
+        throw new Error(errDetail.detail || 'Email server error. Check Gmail credentials.')
       }
-    } catch (innerErr) {
+    } catch (innerErr: any) {
       console.error('Invite step failed, attempting Auth rollback:', innerErr)
-      // ROLLBACK: Delete the Auth user we just created so we don't leave ghosts
+      
+      // If it's a structural error (not reachable), we can fallback as last resort
+      if (innerErr.message?.includes('failed to fetch') || innerErr.name === 'TypeError') {
+        try {
+          const continueUrl =
+            (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
+            `/${p.tenantSlug}/login`
+          await sendPasswordResetEmail(secondaryAuth, p.email, { url: continueUrl })
+          console.log('ℹ️ Fell back to default Firebase email')
+          return 
+        } catch (fbErr) {
+          console.error('Fallback email also failed:', fbErr)
+        }
+      }
+
+      // ROLLBACK: Delete the Auth user so we don't leave ghosts
       try {
         const apiBase = 'https://hrivahr.onrender.com'
         await fetch(`${apiBase}/api/delete-employee-auth`, {
@@ -125,9 +139,9 @@ export async function inviteEmployee(p: InviteEmployeeParams): Promise<void> {
           body:    JSON.stringify({ email: p.email }),
         })
       } catch (rollbackErr) {
-        console.error('Critical: Auth rollback failed as well:', rollbackErr)
+        console.error('Critical: Auth rollback failed:', rollbackErr)
       }
-      throw innerErr // Re-throw the original error after rollback
+      throw innerErr
     }
   } finally {
     await secondaryAuth.signOut()

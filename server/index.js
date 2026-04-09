@@ -137,130 +137,79 @@ app.post('/api/invite', async (req, res) => {
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Welcome to HrivaHR</title>
 </head>
-<body style="margin:0;padding:0;background:#F1F5F9;font-family:'Helvetica Neue',Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:40px 16px;">
+<body style="margin:0;padding:0;background-color:#0F172A;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0F172A;padding:40px 16px;">
   <tr><td align="center">
     <table width="600" cellpadding="0" cellspacing="0"
-      style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-
-      <!-- HEADER -->
+      style="max-width:600px;width:100%;background-color:#1E293B;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+      
+      <!-- HEADER WITH GRADIENT -->
       <tr>
-        <td style="background:linear-gradient(135deg,#2563EB 0%,#4F46E5 100%);padding:40px 40px 36px;text-align:center;">
-          <table cellpadding="0" cellspacing="0" style="margin:0 auto 18px;">
-            <tr>
-              <td style="background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.3);border-radius:14px;padding:10px 22px;">
-                <span style="color:#fff;font-size:24px;font-weight:800;letter-spacing:1px;">
-                  Hriva<span style="color:#BAE6FD;">HR</span>
-                </span>
-              </td>
-            </tr>
-          </table>
-          <h1 style="color:#fff;margin:0;font-size:28px;font-weight:700;line-height:1.3;">
-            Welcome aboard! 🎉
+        <td style="background:linear-gradient(135deg,#3B82F6 0%,#8B5CF6 100%);padding:50px 40px;text-align:center;">
+          <div style="display:inline-block;background:rgba(255,255,255,0.15);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:12px 24px;margin-bottom:24px;">
+            <span style="color:#fff;font-size:26px;font-weight:800;letter-spacing:1px;text-shadow:0 2px 4px rgba(0,0,0,0.2);">
+              Hriva<span style="color:#60A5FA;">HR</span>
+            </span>
+          </div>
+          <h1 style="color:#fff;margin:0;font-size:32px;font-weight:800;line-height:1.2;letter-spacing:-0.5px;">
+            Welcome to the Team! 🎉
           </h1>
-          <p style="color:rgba(255,255,255,0.82);margin:10px 0 0;font-size:15px;">
-            Your HR Portal account is ready to activate
+          <p style="color:rgba(255,255,255,0.9);margin:12px 0 0;font-size:16px;font-weight:500;">
+            Activate your profile to get started
           </p>
         </td>
       </tr>
 
-      <!-- BODY -->
+      <!-- BODY CONTENT -->
       <tr>
-        <td style="padding:40px 40px 28px;">
-          <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#1E293B;">
-            Hi ${name}! 👋
+        <td style="padding:45px 45px 35px;">
+          <p style="margin:0 0 10px;font-size:24px;font-weight:700;color:#F8FAFC;">
+            Hello ${name},
           </p>
-          <p style="margin:0 0 26px;font-size:15px;color:#64748B;line-height:1.7;">
-            You've been added to <strong style="color:#2563EB;">HrivaHR</strong> by your HR team.
-            Your workspace is ready — just create a secure password to get started.
+          <p style="margin:0 0 30px;font-size:16px;color:#94A3B8;line-height:1.8;">
+            We're excited to have you join us at <strong style="color:#60A5FA;">HrivaHR</strong>. 
+            Your workplace digital dashboard is ready. To ensure your account is secure, please click the button below to set your unique password.
           </p>
 
-          <!-- INFO CARD -->
-          <table width="100%" cellpadding="0" cellspacing="0"
-            style="background:#F0F7FF;border:1px solid #BFDBFE;border-radius:14px;margin-bottom:28px;">
-            <tr>
-              <td style="padding:20px 24px;">
-                <p style="margin:0 0 4px;font-size:11px;color:#3B82F6;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">
-                  Your Work Email
-                </p>
-                <p style="margin:0 0 14px;font-size:16px;color:#1E293B;font-weight:700;">
-                  ${email}
-                </p>
-                <p style="margin:0;font-size:13px;color:#64748B;">
-                  ⏰ This link expires in <strong>7 days</strong>. Please activate soon!
-                </p>
-              </td>
-            </tr>
-          </table>
+          <!-- ACCOUNT SUMMARY CARD -->
+          <div style="background-color:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:16px;padding:24px;margin-bottom:35px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td>
+                  <p style="margin:0 0 4px;font-size:12px;color:#60A5FA;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Work Email Address</p>
+                  <p style="margin:0;font-size:18px;color:#F1F5F9;font-weight:600;">${email}</p>
+                </td>
+              </tr>
+            </table>
+          </div>
 
-          <!-- CTA BUTTON -->
+          <!-- ACTION BUTTON -->
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td align="center" style="padding-bottom:28px;">
+              <td align="center" style="padding-bottom:35px;">
                 <a href="${setupLink}"
-                  style="display:inline-block;background:linear-gradient(135deg,#2563EB,#4F46E5);color:#fff;text-decoration:none;font-size:16px;font-weight:700;padding:16px 48px;border-radius:12px;letter-spacing:0.3px;box-shadow:0 4px 14px rgba(37,99,235,0.4);">
-                  🔐 &nbsp;Set Up My Password
+                  style="display:inline-block;background:linear-gradient(135deg,#3B82F6,#6366F1);color:#ffffff;text-decoration:none;font-size:17px;font-weight:700;padding:18px 50px;border-radius:14px;box-shadow:0 10px 25px rgba(59,130,246,0.4);">
+                  Lock In My Password 🔐
                 </a>
               </td>
             </tr>
           </table>
 
-          <!-- FALLBACK LINK -->
-          <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px 18px;">
-            <p style="margin:0 0 6px;font-size:11px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">
-              Button not working?
-            </p>
-            <p style="margin:0;font-size:12px;color:#64748B;word-break:break-all;">
-              Copy &amp; paste this link in your browser:<br/>
-              <a href="${setupLink}" style="color:#2563EB;">${setupLink}</a>
-            </p>
-          </div>
-        </td>
-      </tr>
-
-      <!-- HOW IT WORKS -->
-      <tr>
-        <td style="padding:0 40px 36px;">
-          <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#1E293B;">
-            How to get started:
+          <!-- QUICK INFO -->
+          <p style="margin:0;padding-top:20px;border-top:1px solid rgba(255,255,255,0.05);font-size:13px;color:#64748B;text-align:center;">
+            This link is secure and will expire in <strong style="color:#94A3B8;">48 hours</strong>.
           </p>
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td width="36" valign="top">
-                <div style="width:28px;height:28px;background:#EFF6FF;border-radius:50%;text-align:center;line-height:28px;font-size:13px;font-weight:700;color:#2563EB;">1</div>
-              </td>
-              <td style="padding:4px 0 12px;font-size:14px;color:#475569;">
-                Click <strong>Set Up My Password</strong> above
-              </td>
-            </tr>
-            <tr>
-              <td width="36" valign="top">
-                <div style="width:28px;height:28px;background:#EFF6FF;border-radius:50%;text-align:center;line-height:28px;font-size:13px;font-weight:700;color:#2563EB;">2</div>
-              </td>
-              <td style="padding:4px 0 12px;font-size:14px;color:#475569;">
-                Enter a secure password (min 6 characters)
-              </td>
-            </tr>
-            <tr>
-              <td width="36" valign="top">
-                <div style="width:28px;height:28px;background:#EFF6FF;border-radius:50%;text-align:center;line-height:28px;font-size:13px;font-weight:700;color:#2563EB;">3</div>
-              </td>
-              <td style="padding:4px 0;font-size:14px;color:#475569;">
-                You're in! Access your dashboard instantly 🚀
-              </td>
-            </tr>
-          </table>
         </td>
       </tr>
 
       <!-- FOOTER -->
       <tr>
-        <td style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:24px 40px;text-align:center;">
-          <p style="margin:0 0 6px;font-size:12px;color:#94A3B8;">
-            Sent by <strong style="color:#2563EB;">HrivaHR</strong> on behalf of your company.
+        <td style="background-color:rgba(0,0,0,0.1);padding:30px 45px;text-align:center;">
+          <p style="margin:0 0 8px;font-size:12px;color:#64748B;">
+            Sent by <strong style="color:#60A5FA;">HrivaHR Systems</strong>
           </p>
-          <p style="margin:0;font-size:11px;color:#CBD5E1;">
-            If you did not expect this email, you can safely ignore it.
+          <p style="margin:0;font-size:11px;color:#475569;">
+            &copy; 2026 HrivaHR Global. All rights reserved.
           </p>
         </td>
       </tr>
