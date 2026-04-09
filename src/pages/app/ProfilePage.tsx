@@ -31,14 +31,32 @@ function fmtDate(val: string | undefined) {
   } catch { return val }
 }
 
-function InfoRow({ label, value, isEditing, onChange, type = 'text' }: { 
+function InfoRow({ label, value, isEditing, onChange, type = 'text', options }: { 
   label: string; 
   value: any; 
   isEditing?: boolean; 
   onChange?: (val: any) => void;
-  type?: string;
+  type?: 'text' | 'date' | 'number' | 'select';
+  options?: string[];
 }) {
   if (isEditing && onChange) {
+    if (type === 'select' && options) {
+      return (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-[10px] uppercase tracking-widest font-bold text-slate-400">{label}</Label>
+          <select
+            value={value || ''}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full h-8 px-2 rounded-md border border-slate-200 bg-white text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">Select {label}</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      )
+    }
     return (
       <div className="flex flex-col gap-1.5">
         <Label className="text-[10px] uppercase tracking-widest font-bold text-slate-400">{label}</Label>
@@ -46,7 +64,7 @@ function InfoRow({ label, value, isEditing, onChange, type = 'text' }: {
           type={type} 
           value={value || ''} 
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 text-[13px] border-slate-200"
+          className="h-8 text-[13px] border-slate-200 focus-visible:ring-blue-500"
         />
       </div>
     )
@@ -424,6 +442,11 @@ function PersonalTab({
   saving: boolean;
   leaveBalance: LeaveBalance | null 
 }) {
+  const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say']
+  const MARITAL_STATUSES = ['Single', 'Married', 'Divorced', 'Widowed']
+  const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']
+  const CASTE_CATEGORIES = ['General', 'SC', 'ST', 'OBC', 'Other']
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <SectionCard 
@@ -448,13 +471,41 @@ function PersonalTab({
           <InfoRow label="First Name"    value={emp.firstName} isEditing={isEditing} onChange={(v) => onUpdate('firstName', v)} />
           <InfoRow label="Last Name"     value={emp.lastName} isEditing={isEditing} onChange={(v) => onUpdate('lastName', v)} />
           <InfoRow label="Middle Name"   value={emp.middleName} isEditing={isEditing} onChange={(v) => onUpdate('middleName', v)} />
-          <InfoRow label="Gender"        value={emp.gender} isEditing={isEditing} onChange={(v) => onUpdate('gender', v)} />
+          <InfoRow 
+            label="Gender"        
+            value={emp.gender} 
+            isEditing={isEditing} 
+            type="select" 
+            options={GENDERS}
+            onChange={(v) => onUpdate('gender', v)} 
+          />
           <InfoRow label="Date of Birth" value={emp.dateOfBirth} isEditing={isEditing} type="date" onChange={(v) => onUpdate('dateOfBirth', v)} />
-          <InfoRow label="Blood Group"   value={emp.bloodGroup} isEditing={isEditing} onChange={(v) => onUpdate('bloodGroup', v)} />
-          <InfoRow label="Marital Status" value={emp.maritalStatus} isEditing={isEditing} onChange={(v) => onUpdate('maritalStatus', v)} />
+          <InfoRow 
+            label="Blood Group"   
+            value={emp.bloodGroup} 
+            isEditing={isEditing} 
+            type="select"
+            options={BLOOD_GROUPS}
+            onChange={(v) => onUpdate('bloodGroup', v)} 
+          />
+          <InfoRow 
+            label="Marital Status" 
+            value={emp.maritalStatus} 
+            isEditing={isEditing} 
+            type="select"
+            options={MARITAL_STATUSES}
+            onChange={(v) => onUpdate('maritalStatus', v)} 
+          />
           <InfoRow label="Nationality"   value={emp.nationality || 'Indian'} isEditing={isEditing} onChange={(v) => onUpdate('nationality', v)} />
           <InfoRow label="Religion"      value={emp.religion} isEditing={isEditing} onChange={(v) => onUpdate('religion', v)} />
-          <InfoRow label="Caste"         value={emp.caste} isEditing={isEditing} onChange={(v) => onUpdate('caste', v)} />
+          <InfoRow 
+            label="Caste"         
+            value={emp.caste} 
+            isEditing={isEditing} 
+            type="select"
+            options={CASTE_CATEGORIES}
+            onChange={(v) => onUpdate('caste', v)} 
+          />
           {/* Differently Abled - simple toggle logic or just read-only for now */}
           <InfoRow label="Differently Abled" value={emp.differentlyAbled ? 'Yes' : 'No'} />
         </div>
@@ -553,6 +604,10 @@ function WorkTab({
   saving: boolean;
   isAdmin: boolean 
 }) {
+  const WORK_TYPES = ['WFO', 'WFH', 'Hybrid']
+  const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern']
+  const STATUSES = ['Active', 'Inactive', 'On Leave', 'Resigned', 'On Notice']
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <SectionCard 
@@ -577,13 +632,13 @@ function WorkTab({
       >
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
           <InfoRow label="Employee ID"     value={emp.employeeId} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('employeeId', v)} />
-          <InfoRow label="Designation"     value={emp.designation} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('designation', v)} />
-          <InfoRow label="Department"      value={emp.department} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('department', v)} />
+          <InfoRow label="Designation"     value={emp.designation} isEditing={isAdmin && isEditing} type="select" options={DESIGNATIONS} onChange={(v) => onUpdate('designation', v)} />
+          <InfoRow label="Department"      value={emp.department} isEditing={isAdmin && isEditing} type="select" options={DEPARTMENTS} onChange={(v) => onUpdate('department', v)} />
           <InfoRow label="Sub Department"  value={emp.subDepartment} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('subDepartment', v)} />
           <InfoRow label="Location"        value={emp.location} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('location', v)} />
-          <InfoRow label="Work Type"       value={emp.workType} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('workType', v)} />
-          <InfoRow label="Employment Type" value={emp.employmentType} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('employmentType', v)} />
-          <InfoRow label="Status"          value={emp.status} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('status', v)} />
+          <InfoRow label="Work Type"       value={emp.workType} isEditing={isAdmin && isEditing} type="select" options={WORK_TYPES} onChange={(v) => onUpdate('workType', v)} />
+          <InfoRow label="Employment Type" value={emp.employmentType} isEditing={isAdmin && isEditing} type="select" options={EMPLOYMENT_TYPES} onChange={(v) => onUpdate('employmentType', v)} />
+          <InfoRow label="Status"          value={emp.status} isEditing={isAdmin && isEditing} type="select" options={STATUSES} onChange={(v) => onUpdate('status', v)} />
           <InfoRow label="Grade / Band"    value={emp.grade} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('grade', v)} />
           <InfoRow label="Cost Center"     value={emp.costCenter} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('costCenter', v)} />
         </div>
@@ -666,7 +721,7 @@ function AddressTab({
             <InfoRow label="Address Line" value={emp.currentAddressLine} isEditing={isEditing} onChange={(v) => onUpdate('currentAddressLine', v)} />
           </div>
           <InfoRow label="City"     value={emp.currentCity} isEditing={isEditing} onChange={(v) => onUpdate('currentCity', v)} />
-          <InfoRow label="State"    value={emp.currentState} isEditing={isEditing} onChange={(v) => onUpdate('currentState', v)} />
+          <InfoRow label="State"    value={emp.currentState} isEditing={isEditing} type="select" options={INDIAN_STATES} onChange={(v) => onUpdate('currentState', v)} />
           <InfoRow label="PIN Code" value={emp.currentPinCode} isEditing={isEditing} onChange={(v) => onUpdate('currentPinCode', v)} />
           <InfoRow label="Country"  value={emp.currentCountry} isEditing={isEditing} onChange={(v) => onUpdate('currentCountry', v)} />
         </div>
@@ -703,7 +758,7 @@ function AddressTab({
               <InfoRow label="Address Line" value={emp.permanentAddressLine} isEditing={isEditing} onChange={(v) => onUpdate('permanentAddressLine', v)} />
             </div>
             <InfoRow label="City"     value={emp.permanentCity} isEditing={isEditing} onChange={(v) => onUpdate('permanentCity', v)} />
-            <InfoRow label="State"    value={emp.permanentState} isEditing={isEditing} onChange={(v) => onUpdate('permanentState', v)} />
+            <InfoRow label="State"    value={emp.permanentState} isEditing={isEditing} type="select" options={INDIAN_STATES} onChange={(v) => onUpdate('permanentState', v)} />
             <InfoRow label="PIN Code" value={emp.permanentPinCode} isEditing={isEditing} onChange={(v) => onUpdate('permanentPinCode', v)} />
             <InfoRow label="Country"  value={emp.permanentCountry} isEditing={isEditing} onChange={(v) => onUpdate('permanentCountry', v)} />
           </div>
@@ -810,6 +865,8 @@ function BankTab({
       : `XXXXXXXX${emp.accountNumber.slice(-4)}`
     : '—'
 
+  const ACCOUNT_TYPES = ['Savings', 'Current']
+
   return (
     <SectionCard 
       title="Bank Details" 
@@ -841,7 +898,7 @@ function BankTab({
         <InfoRow label="Bank Name"       value={emp.bankName} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('bankName', v)} />
         <InfoRow label="Account Number"  value={isAdmin && isEditing ? emp.accountNumber : maskedAcct} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('accountNumber', v)} />
         <InfoRow label="IFSC Code"       value={emp.ifscCode} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('ifscCode', v)} />
-        <InfoRow label="Account Type"    value={emp.accountType} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('accountType', v)} />
+        <InfoRow label="Account Type"    value={emp.accountType} isEditing={isAdmin && isEditing} type="select" options={ACCOUNT_TYPES} onChange={(v) => onUpdate('accountType', v)} />
         <div className="col-span-2">
           <InfoRow label="Branch Name"   value={emp.branchName} isEditing={isAdmin && isEditing} onChange={(v) => onUpdate('branchName', v)} />
         </div>
