@@ -304,8 +304,17 @@ export default function EmployeesPage() {
     const errs: Record<string, string> = {}
     for (const rules of Object.values(TAB_REQUIRED)) {
       for (const [k, msg] of Object.entries(rules)) {
-        if (!formData[k] || String(formData[k]).trim() === '') errs[k] = msg
+        if (!formData[k] || String(formData[k]).trim() === '') {
+          errs[k] = msg
+        }
       }
+    }
+    // Strict Email Validation
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errs.email = 'Please enter a valid email address (e.g. name@company.com)'
+    }
+    if (formData.email?.includes('..')) {
+      errs.email = 'Email cannot contain consecutive dots (..)'
     }
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -462,6 +471,12 @@ export default function EmployeesPage() {
     if (!tenantSlug) return
     const testEmail = prompt('Enter email to send test invite:')
     if (!testEmail) return
+    
+    // Basic validation for test email
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail) || testEmail.includes('..')) {
+      alert('Invalid email format. Please check for errors like double dots (..)')
+      return
+    }
 
     setSaving(true)
     try {

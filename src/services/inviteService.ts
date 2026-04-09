@@ -76,10 +76,15 @@ export async function inviteEmployee(p: InviteEmployeeParams): Promise<void> {
       })
 
       // ── 4. Link the employee Firestore doc to the Firebase Auth UID ──
-      await updateDoc(
-        doc(db, 'tenants', p.tenantSlug, 'employees', p.employeeDocId),
-        { uid, authStatus: 'active' },
-      )
+      // Skip for "test-doc-id" used in manual testing
+      if (p.employeeDocId !== 'test-doc-id') {
+        await updateDoc(
+          doc(db, 'tenants', p.tenantSlug, 'employees', p.employeeDocId),
+          { uid, authStatus: 'active' },
+        )
+      } else {
+        console.log('ℹ️ Skipping tenant doc update for test run')
+      }
 
       // ── 5. Send beautiful custom invite email via Render/Resend ─────
       const apiBase  = 'https://hrivahr.onrender.com'
