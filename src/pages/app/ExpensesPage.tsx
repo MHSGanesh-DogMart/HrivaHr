@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Receipt, Plus, Check, X, ChevronRight, Loader2,
   Wallet, Clock, CheckCircle2, XCircle, Filter,
+  Upload, FileText, ExternalLink,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -11,6 +12,7 @@ import {
   type FirestoreExpense, type ExpenseCategory, type ExpenseStatus,
 } from '@/services/expenseService'
 import { getEmployees, type FirestoreEmployee } from '@/services/employeeService'
+import { uploadFile, validateFile, type UploadProgress } from '@/services/storageService'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -105,6 +107,11 @@ export default function ExpensesPage() {
   const [submitting, setSubmitting]   = useState(false)
   const [formError, setFormError]     = useState('')
 
+  /* Receipt upload state */
+  const [receiptFile, setReceiptFile]         = useState<File | null>(null)
+  const [uploadProgress, setUploadProgress]   = useState<number>(0)
+  const [uploading, setUploading]             = useState(false)
+
   /* Reject dialog state */
   const [rejectTarget, setRejectTarget] = useState<FirestoreExpense | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -157,6 +164,21 @@ export default function ExpensesPage() {
 
     setSubmitting(true)
     try {
+      // Upload receipt if provided
+      let receiptUrl: string | undefined
+      if (receiptFile) {
+        setUploading(true)
+        setUploadProgress(0)
+        const result = await uploadFile(
+          tenantSlug,
+          'expense-receipts' as any,
+          receiptFile,
+          (p: UploadProgress) => setUploadProgress(p.percent),
+        )
+        receiptUrl = result.url
+        setUploading(false)
+      }
+
       // Resolve employee info
       const empDoc = employees.find(emp => emp.id === profile?.uid) ??
                      employees.find(emp => emp.email === profile?.email)
@@ -171,6 +193,7 @@ export default function ExpensesPage() {
         date:          formDate,
         description:   formDesc.trim(),
         status:        'Submitted',
+        ...(receiptUrl ? { receiptUrl } : {}),
       })
 
       setShowForm(false)
@@ -178,10 +201,13 @@ export default function ExpensesPage() {
       setFormDesc('')
       setFormCategory('Travel')
       setFormDate(new Date().toISOString().split('T')[0])
+      setReceiptFile(null)
+      setUploadProgress(0)
       await loadData()
     } catch (err) {
       console.error('Submit expense failed:', err)
       setFormError('Failed to submit claim. Please try again.')
+      setUploading(false)
     } finally {
       setSubmitting(false)
     }
@@ -346,6 +372,7 @@ export default function ExpensesPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Description</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Receipt</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
                   </tr>
                 </thead>
@@ -392,6 +419,22 @@ export default function ExpensesPage() {
                               </p>
                             )}
                           </div>
+                        </td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          {exp.receiptUrl ? (
+                            <a
+                              href={exp.receiptUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              View Receipt
+                              <ExternalLink className="w-3 h-3 opacity-60" />
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1.5">
@@ -456,7 +499,7 @@ export default function ExpensesPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
-              onClick={() => setShowForm(false)}
+              onClick={() => { setShowForm(false); setReceiptFile(null); setUploadProgress(0) }}
             />
             {/* Dialog */}
             <motion.div
@@ -473,7 +516,7 @@ export default function ExpensesPage() {
                     <p className="text-xs text-slate-500 mt-0.5">Fill in the details to submit your claim.</p>
                   </div>
                   <button
-                    onClick={() => setShowForm(false)}
+                    onClick={() => { setShowForm(false); setReceiptFile(null); setUploadProgress(0) }}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     <X className="w-4 h-4" />
@@ -541,6 +584,65 @@ export default function ExpensesPage() {
                     />
                   </div>
 
+                  {/* Receipt Upload */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Upload Receipt <span className="text-slate-400 font-normal">(optional · image or PDF · max 5MB)</span>
+                    </label>
+                    <label className={cn(
+                      'flex items-center gap-3 w-full border rounded-lg px-3 py-2.5 cursor-pointer transition-colors',
+                      receiptFile
+                        ? 'border-blue-300 bg-blue-50/40'
+                        : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50',
+                    )}>
+                      <Upload className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-sm truncate flex-1 text-slate-600">
+                        {receiptFile ? receiptFile.name : 'Choose file…'}
+                      </span>
+                      {receiptFile && (
+                        <button
+                          type="button"
+                          onClick={e => { e.preventDefault(); setReceiptFile(null); setUploadProgress(0) }}
+                          className="p-0.5 rounded text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const validation = validateFile(file, { maxSizeMB: 5, allowedTypes: ['image', 'pdf'] })
+                          if (!validation.valid) {
+                            setFormError(validation.error ?? 'Invalid file.')
+                            return
+                          }
+                          setFormError('')
+                          setReceiptFile(file)
+                          setUploadProgress(0)
+                        }}
+                      />
+                    </label>
+                    {/* Progress bar */}
+                    {uploading && (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-slate-500 font-medium">Uploading receipt…</span>
+                          <span className="text-[10px] text-slate-500 font-semibold">{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-blue-500 h-1.5 rounded-full transition-all duration-200"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Error */}
                   <AnimatePresence>
                     {formError && (
@@ -560,18 +662,18 @@ export default function ExpensesPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setShowForm(false)}
+                      onClick={() => { setShowForm(false); setReceiptFile(null); setUploadProgress(0) }}
                       className="flex-1 border-slate-200 text-slate-600"
                     >
                       Cancel
                     </Button>
                     <Button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submitting || uploading}
                       className="flex-1 bg-slate-900 hover:bg-slate-700 text-white gap-2"
                     >
-                      {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                      Submit Claim
+                      {(submitting || uploading) && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {uploading ? 'Uploading…' : 'Submit Claim'}
                     </Button>
                   </div>
                 </form>

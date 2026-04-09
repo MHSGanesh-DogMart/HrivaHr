@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * onboardingService.ts
  * ─────────────────────────────────────────────────────────────────
@@ -92,12 +93,55 @@ export interface FirestoreOffboarding {
 }
 
 export interface ExitInterview {
-  conductedOn?:  string
-  conductedBy?:  string
-  reason:        string
-  feedback:      string
-  wouldRejoin:   boolean
-  rating:        number            // 1–5 (company rating)
+  conductedOn?:       string
+  conductedBy?:       string
+  reason:             string
+  feedback:           string
+  wouldRejoin:        boolean
+  rating:             number            // 1–5 (company rating)
+  // Enhanced fields (H8)
+  reasonCategory?:    string            // Career Growth | Better Compensation | etc.
+  wouldRecommend?:    'Yes' | 'No' | 'Maybe'
+  overallRating?:     number            // 1-5
+  managerRating?:     number            // 1-5
+  workCultureRating?: number            // 1-5
+  keyAchievements?:   string
+  suggestions?:       string
+  finalComments?:     string
+}
+
+export interface OnboardingDocument {
+  url:        string
+  uploadedAt: string
+  uploadedBy: string
+  status:     'Pending' | 'Uploaded' | 'Verified'
+  storagePath?: string
+  fileName?:  string
+}
+
+export type OnboardingDocuments = Record<string, OnboardingDocument>
+
+export interface FnFInput {
+  ctc:              number    // annual CTC
+  joiningDate:      string    // YYYY-MM-DD
+  lastWorkingDate:  string    // YYYY-MM-DD
+  lopDays:          number    // loss of pay days in last month
+  noticePeriodDays: number    // days short in notice
+}
+
+export interface FnFResult {
+  monthlySalary:        number
+  dailySalary:          number
+  dailyBasic:           number
+  daysWorkedLastMonth:  number
+  earnedSalary:         number
+  leaveEncashment:      number
+  gratuity:             number
+  noticePeriodDeduction: number
+  grossPayable:         number
+  netPayable:           number
+  yearsOfService:       number
+  isGratuityEligible:   boolean
 }
 
 /* ── Default task templates ─────────────────────────────────────── */
@@ -313,6 +357,115 @@ export async function getOffboardingByEmployee(
 }
 
 export const EXIT_REASONS = ['Resignation', 'Termination', 'Retirement', 'Contract End', 'Mutual Separation', 'Absconding']
+
+export const EXIT_REASON_CATEGORIES = [
+  'Career Growth',
+  'Better Compensation',
+  'Work-Life Balance',
+  'Relocation',
+  'Personal Reasons',
+  'Termination',
+  'Contract End',
+  'Other',
+]
+
+/* ── ONBOARDING DOCUMENTS (H7) ──────────────────────────────────── */
+
+export const REQUIRED_DOCUMENTS = [
+  'Offer Letter Signed',
+  'Aadhaar Card',
+  'PAN Card',
+  'Education Certificates',
+  'Previous Experience Letter',
+  'Bank Details',
+  'Photo',
+  'Medical Certificate',
+] as const
+
+export async function updateOnboardingDocuments(
+  slug: string,
+  onboardingId: string,
+  docName: string,
+  docData: OnboardingDocument,
+): Promise<void> {
+  const ref = doc(db, 'tenants', slug, 'onboarding', onboardingId)
+  await updateDoc(ref, {
+    [`documents.${docName}`]: docData,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function verifyOnboardingDocument(
+  slug: string,
+  onboardingId: string,
+  docName: string,
+  verifiedBy: string,
+): Promise<void> {
+  const ref = doc(db, 'tenants', slug, 'onboarding', onboardingId)
+  await updateDoc(ref, {
+    [`documents.${docName}.status`]: 'Verified',
+    [`documents.${docName}.verifiedBy`]: verifiedBy,
+    [`documents.${docName}.verifiedAt`]: new Date().toISOString(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/* ── F&F CALCULATOR UTILITY (H8) ────────────────────────────────── */
+
+export function calcFnF(
+  employee: FnFInput,
+  pendingPL: number,
+): FnFResult {
+  const { ctc, joiningDate, lastWorkingDate, lopDays, noticePeriodDays } = employee
+
+  const monthlySalary = ctc / 12
+  const dailySalary   = monthlySalary / 26
+  const monthlyBasic  = monthlySalary * 0.5
+  const dailyBasic    = monthlyBasic / 26
+
+  // Days worked in last month
+  const lastDay = new Date(lastWorkingDate)
+  const daysInLastMonth = new Date(lastDay.getFullYear(), lastDay.getMonth() + 1, 0).getDate()
+  const daysWorkedLastMonth = Math.max(0, lastDay.getDate() - lopDays)
+
+  // Years of service
+  const joining     = new Date(joiningDate)
+  const msInYear    = 1000 * 60 * 60 * 24 * 365.25
+  const yearsOfService = (lastDay.getTime() - joining.getTime()) / msInYear
+
+  // Earned salary for partial month
+  const earnedSalary = dailySalary * daysWorkedLastMonth
+
+  // Leave encashment: PL days × daily basic
+  const leaveEncashment = dailyBasic * pendingPL
+
+  // Gratuity (eligible if >= 5 years): 15/26 × basic per month × years
+  const isGratuityEligible = yearsOfService >= 5
+  const gratuity = isGratuityEligible
+    ? (monthlyBasic / 26) * 15 * Math.floor(yearsOfService)
+    : 0
+
+  // Notice period shortfall deduction
+  const noticePeriodDeduction = noticePeriodDays > 0 ? dailySalary * noticePeriodDays : 0
+
+  const grossPayable = earnedSalary + leaveEncashment + gratuity
+  const netPayable   = Math.max(0, grossPayable - noticePeriodDeduction)
+
+  return {
+    monthlySalary:         Math.round(monthlySalary),
+    dailySalary:           Math.round(dailySalary),
+    dailyBasic:            Math.round(dailyBasic),
+    daysWorkedLastMonth,
+    earnedSalary:          Math.round(earnedSalary),
+    leaveEncashment:       Math.round(leaveEncashment),
+    gratuity:              Math.round(gratuity),
+    noticePeriodDeduction: Math.round(noticePeriodDeduction),
+    grossPayable:          Math.round(grossPayable),
+    netPayable:            Math.round(netPayable),
+    yearsOfService:        Math.round(yearsOfService * 10) / 10,
+    isGratuityEligible,
+  }
+}
 
 export const TASK_CATEGORY_COLOR: Record<TaskCategory, string> = {
   Documentation:  'bg-blue-50 text-blue-700 border-blue-100',

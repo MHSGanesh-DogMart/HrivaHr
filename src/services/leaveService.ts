@@ -444,6 +444,77 @@ export async function incrementLeaveUsed(
   await _adjustUsedBalance(tenantSlug, employeeDocId, leaveType, days, 'add')
 }
 
+/* ── Leave Encashment ──────────────────────────────────────────── */
+
+export interface LeaveEncashment {
+  id?:            string
+  employeeDocId:  string
+  employeeName:   string
+  daysEncashed:   number
+  amountPaid:     number
+  encashedOn:     string   // YYYY-MM-DD
+  processedBy:    string
+  createdAt?:     unknown
+}
+
+export async function encashLeave(
+  tenantSlug: string,
+  data: Omit<LeaveEncashment, 'id' | 'createdAt'>,
+): Promise<string> {
+  // Deduct from PL balance
+  const balance = await getLeaveBalance(tenantSlug, data.employeeDocId)
+  const pl      = balance.PL
+  const updated = {
+    ...balance,
+    PL: {
+      ...pl,
+      used:      pl.used      + data.daysEncashed,
+      remaining: Math.max(0, pl.remaining - data.daysEncashed),
+    },
+  }
+  await setDoc(doc(db, 'tenants', tenantSlug, 'leaveBalances', data.employeeDocId), updated)
+
+  const ref = await addDoc(
+    collection(db, 'tenants', tenantSlug, 'leaveEncashments'),
+    { ...data, createdAt: serverTimestamp() },
+  )
+  return ref.id
+}
+
+/* ── Leave Blackout Dates ──────────────────────────────────────── */
+
+export interface LeaveBlackout {
+  id?:         string
+  startDate:   string   // YYYY-MM-DD
+  endDate:     string   // YYYY-MM-DD
+  reason:      string
+  departments: string[] // ['All'] or ['Engineering', 'HR', …]
+  createdBy:   string
+  createdAt?:  unknown
+}
+
+export async function addLeaveBlackout(
+  tenantSlug: string,
+  data: Omit<LeaveBlackout, 'id' | 'createdAt'>,
+): Promise<string> {
+  const ref = await addDoc(
+    collection(db, 'tenants', tenantSlug, 'leaveBlackouts'),
+    { ...data, createdAt: serverTimestamp() },
+  )
+  return ref.id
+}
+
+export async function getLeaveBlackouts(tenantSlug: string): Promise<LeaveBlackout[]> {
+  const snap = await getDocs(
+    query(collection(db, 'tenants', tenantSlug, 'leaveBlackouts'), orderBy('startDate', 'asc')),
+  )
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as LeaveBlackout))
+}
+
+export async function deleteLeaveBlackout(tenantSlug: string, blackoutId: string): Promise<void> {
+  await deleteDoc(doc(db, 'tenants', tenantSlug, 'leaveBlackouts', blackoutId))
+}
+
 /* ── Leave type meta (label + color) ──────────────────────────── */
 export const LEAVE_TYPE_META: Record<LeaveType, { label: string; color: string; bg: string }> = {
   CL:        { label: 'Casual Leave',          color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-100' },

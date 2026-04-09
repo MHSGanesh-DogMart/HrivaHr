@@ -29,6 +29,7 @@ function row(label: string, value: number, color = '#1E293B'): string {
 export function generatePayslipPDF(
   p: FirestorePayroll,
   companyName = 'HrivaHR',
+  companyLogoUrl?: string,
 ): void {
   const generatedOn = new Date().toLocaleDateString('en-IN', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -244,7 +245,10 @@ export function generatePayslipPDF(
 
     <!-- Header -->
     <div class="header">
-      <div class="logo">${companyName.replace('HR', '<span>HR</span>')}</div>
+      ${companyLogoUrl
+        ? `<img src="${companyLogoUrl}" alt="${companyName}" style="max-height:56px;max-width:200px;object-fit:contain;" />`
+        : `<div class="logo">${companyName.replace('HR', '<span>HR</span>')}</div>`
+      }
       <div class="payslip-title">
         <h1>Pay Slip</h1>
         <p>${p.month}</p>

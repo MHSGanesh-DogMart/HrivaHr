@@ -248,12 +248,14 @@ export async function generatePayroll(
   tenantSlug: string,
   employees: FirestoreEmployee[],
   month: string,
+  lopMap: Record<string, number> = {},
 ): Promise<void> {
   const batch = writeBatch(db)
 
   for (const emp of employees) {
     if (emp.status !== 'Active') continue
-    const breakdown = calcSalaryBreakdown(emp.salary)
+    const lopDays  = lopMap[emp.employeeId] ?? 0
+    const breakdown = calcSalaryBreakdown(emp.salary, lopDays)
 
     const ref = doc(payColRef(tenantSlug))
     batch.set(ref, {
@@ -263,7 +265,7 @@ export async function generatePayroll(
       designation:   emp.designation,
       department:    emp.department,
       ctc:           emp.salary,
-      lop:           0,
+      lop:           lopDays,
       ...breakdown,
       status:    'Pending' as PayrollStatus,
       month,
@@ -304,4 +306,84 @@ export async function processAllPayroll(
     }
   }
   await batch.commit()
+}
+
+/* ── CSV Export Utilities ──────────────────────────────────────── */
+
+function escapeCsv(val: unknown): string {
+  const s = String(val ?? '')
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return `"${s.replace(/"/g, '""')}"`
+  }
+  return s
+}
+
+function downloadCsv(filename: string, rows: string[][]): void {
+  const csv     = rows.map((r) => r.map(escapeCsv).join(',')).join('\n')
+  const blob    = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url     = URL.createObjectURL(blob)
+  const a       = document.createElement('a')
+  a.href        = url
+  a.download    = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * exportPayrollToCsv — exports full payroll summary as CSV
+ */
+export function exportPayrollToCsv(records: FirestorePayroll[], month: string): void {
+  const header = [
+    'Employee ID', 'Name', 'Department', 'Designation',
+    'CTC', 'Basic', 'HRA', 'Allowances',
+    'PF (Emp)', 'ESI (Emp)', 'PT', 'TDS',
+    'Total Deductions', 'Net Pay', 'LOP Days', 'Status',
+  ]
+
+  const dataRows = records.map((r) => [
+    r.employeeId,
+    r.employeeName,
+    r.department,
+    r.designation,
+    r.ctc,
+    r.basic,
+    r.hra,
+    r.allowances,
+    r.pf,
+    r.esi,
+    r.pt,
+    r.tds,
+    r.deductions,
+    r.netPay,
+    r.lop ?? 0,
+    r.status,
+  ])
+
+  const safeMonth = month.replace(/\s+/g, '_')
+  downloadCsv(`Payroll_${safeMonth}.csv`, [header, ...dataRows])
+}
+
+/**
+ * exportBankTransferCsv — exports bank transfer format CSV
+ * Includes employee name, account number (if available), IFSC, net pay
+ */
+export function exportBankTransferCsv(records: FirestorePayroll[], month: string): void {
+  const header = [
+    'Employee Name', 'Employee ID', 'Account Number', 'IFSC Code', 'Net Pay', 'Status',
+  ]
+
+  const dataRows = records.map((r) => [
+    r.employeeName,
+    r.employeeId,
+    (r as any).bankAccount ?? '',
+    (r as any).ifscCode    ?? '',
+    r.netPay,
+    r.status,
+  ])
+
+  const safeMonth = month.replace(/\s+/g, '_')
+  downloadCsv(`BankTransfer_${safeMonth}.csv`, [header, ...dataRows])
 }

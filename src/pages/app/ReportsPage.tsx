@@ -5,6 +5,7 @@ import {
   BarChart2, Users, Clock, Calendar, Download, Filter,
   TrendingUp, DollarSign, FileText, RefreshCw,
   CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Printer,
+  Settings2, Save, Trash2, Plus, Eye,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -13,9 +14,11 @@ import {
 } from 'recharts'
 import { getAttendanceByRange, exportAttendanceToCsv } from '@/services/attendanceService'
 import { getLeavesInRange, exportLeavesToCsv } from '@/services/leaveService'
-import { getEmployees } from '@/services/employeeService'
+import { getEmployees, DEPARTMENTS } from '@/services/employeeService'
 import { getAllOffboardings } from '@/services/onboardingService'
-import { getPayrollByMonth } from '@/services/payrollService'
+import { getPayrollByMonth, getAllPayroll } from '@/services/payrollService'
+import { getAllExpenses } from '@/services/expenseService'
+import { saveReport, getSavedReports, deleteReport } from '@/services/reportBuilderService'
 
 const REPORT_TYPES = [
   { id: 'attendance', label: 'Attendance Report',  icon: Clock,       color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-100'    },
@@ -55,11 +58,89 @@ function ChartCard({ title, children, className }: any) {
   )
 }
 
+/* ── Column definitions for each data source ─────────────────────── */
+const SOURCE_COLUMNS: Record<string, string[]> = {
+  Employees:  ['Name', 'Employee ID', 'Department', 'Designation', 'Email', 'Phone', 'Join Date', 'Status', 'CTC', 'Work Type'],
+  Attendance: ['Employee', 'Date', 'Check In', 'Check Out', 'Hours', 'Status'],
+  Leaves:     ['Employee', 'Leave Type', 'From', 'To', 'Days', 'Status', 'Applied On'],
+  Payroll:    ['Employee', 'Month', 'CTC', 'Basic', 'HRA', 'Deductions', 'Net Pay', 'Status'],
+  Expenses:   ['Employee', 'Category', 'Amount', 'Date', 'Status'],
+}
+
+const DATE_SOURCES = new Set(['Attendance', 'Leaves', 'Payroll', 'Expenses'])
+
+/* ── CSV encoding helper ─────────────────────────────────────────── */
+function csvCell(val: any): string {
+  const s = val == null ? '' : String(val)
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+function buildCsv(headers: string[], rows: any[][]): string {
+  return [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n')
+}
+
+/* ── Map raw record to selected columns ─────────────────────────── */
+function mapRecord(source: string, rec: any, columns: string[]): any[] {
+  const map: Record<string, Record<string, any>> = {
+    Employees: {
+      'Name':         rec.name,
+      'Employee ID':  rec.employeeId,
+      'Department':   rec.department,
+      'Designation':  rec.designation,
+      'Email':        rec.email,
+      'Phone':        rec.phone,
+      'Join Date':    rec.joinDate,
+      'Status':       rec.status,
+      'CTC':          rec.salary,
+      'Work Type':    rec.workType,
+    },
+    Attendance: {
+      'Employee':  rec.employeeName,
+      'Date':      rec.date,
+      'Check In':  rec.clockIn,
+      'Check Out': rec.clockOut,
+      'Hours':     rec.hoursWorked,
+      'Status':    rec.status,
+    },
+    Leaves: {
+      'Employee':   rec.employeeName,
+      'Leave Type': rec.leaveType,
+      'From':       rec.fromDate,
+      'To':         rec.toDate,
+      'Days':       rec.days ?? rec.numberOfDays,
+      'Status':     rec.status,
+      'Applied On': rec.appliedOn ?? rec.createdAt,
+    },
+    Payroll: {
+      'Employee':   rec.employeeName,
+      'Month':      rec.month,
+      'CTC':        rec.ctc ?? rec.grossPay,
+      'Basic':      rec.basic,
+      'HRA':        rec.hra,
+      'Deductions': rec.totalDeductions ?? ((rec.pf ?? 0) + (rec.tds ?? 0)),
+      'Net Pay':    rec.netPay,
+      'Status':     rec.status,
+    },
+    Expenses: {
+      'Employee': rec.employeeName,
+      'Category': rec.category,
+      'Amount':   rec.amount,
+      'Date':     rec.date,
+      'Status':   rec.status,
+    },
+  }
+  const m = map[source] ?? {}
+  return columns.map(col => m[col] ?? '')
+}
+
 /* ─────────────────────────────────────────────────────────────────── */
 export default function ReportsPage() {
   const { profile }     = useAuth()
   const slug            = profile?.tenantSlug ?? ''
   const printRef        = useRef<HTMLDivElement>(null)
+
+  // Top-level tab: 'reports' | 'builder'
+  const [mainTab, setMainTab] = useState<'reports' | 'builder'>('reports')
 
   const [activeReport, setActiveReport] = useState('attendance')
   const [fromDate, setFromDate] = useState(() => {
@@ -175,16 +256,36 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Reports & Analytics</h1>
           <p className="text-sm text-slate-500 mt-0.5">Insights across attendance, leave, payroll and workforce</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={printReport} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
-            <Printer className="w-4 h-4" /> Print
-          </button>
-          <button onClick={exportReport} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
-        </div>
+        {mainTab === 'reports' && (
+          <div className="flex gap-2">
+            <button onClick={printReport} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
+              <Printer className="w-4 h-4" /> Print
+            </button>
+            <button onClick={exportReport} className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Main Tabs */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit print:hidden">
+        {[
+          { id: 'reports', label: 'Standard Reports', icon: BarChart2 },
+          { id: 'builder', label: 'Report Builder',   icon: Settings2 },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setMainTab(tab.id as any)}
+            className={cn('flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-all',
+              mainTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+            <tab.icon className="w-3.5 h-3.5" /> {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Report Builder Tab */}
+      {mainTab === 'builder' && <ReportBuilder slug={slug} employees={employees} />}
+
+      {mainTab === 'reports' && <>
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map(k => (
@@ -274,6 +375,7 @@ export default function ReportsPage() {
           [data-printable], [data-printable] * { visibility: visible; }
         }
       `}</style>
+      </>}
     </div>
   )
 }

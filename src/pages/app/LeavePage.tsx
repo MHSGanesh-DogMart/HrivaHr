@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Search, Calendar, CheckCircle2, XCircle, Loader2,
   Download, CalendarDays, Umbrella, Clock, Users, AlertCircle,
-  ChevronLeft, ChevronRight, Trash2, X
+  ChevronLeft, ChevronRight, Trash2, X, DollarSign, Ban,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,9 +20,10 @@ import {
   getLeaveRequests, updateLeaveStatus, applyLeave, cancelLeave,
   getLeaveBalance, getHolidays, addHoliday, deleteHoliday,
   seedDefaultHolidays, getLeavesInRange, calcWorkingDays, exportLeavesToCsv,
+  encashLeave, addLeaveBlackout, getLeaveBlackouts, deleteLeaveBlackout,
   LEAVE_TYPE_META,
   type FirestoreLeave, type LeaveStatus, type LeaveType, type LeaveBalance,
-  type FirestoreHoliday, type HalfDaySlot,
+  type FirestoreHoliday, type HalfDaySlot, type LeaveBlackout,
 } from '@/services/leaveService'
 import { getEmployees } from '@/services/employeeService'
 
@@ -142,8 +143,6 @@ export default function LeavePage() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
 
   /* ── Active tab ── */
-  const adminTabs  = ['requests', 'calendar', 'holidays'] as const
-  const empTabs    = ['my-leaves', 'calendar', 'holidays'] as const
   const defaultTab = isAdmin ? 'requests' : 'my-leaves'
   const [activeTab, setActiveTab] = useState<string>(defaultTab)
 
@@ -168,6 +167,35 @@ export default function LeavePage() {
   /* ── Holidays ── */
   const [holidays, setHolidays]       = useState<FirestoreHoliday[]>([])
   const [loadingHol, setLoadingHol]   = useState(false)
+
+  /* ── Blackout Dates ── */
+  const [blackouts, setBlackouts]           = useState<LeaveBlackout[]>([])
+  const [loadingBlackouts, setLoadingBlackouts] = useState(false)
+  const [blackoutOpen, setBlackoutOpen]     = useState(false)
+  const [blackoutLoading, setBlackoutLoading] = useState(false)
+  const emptyBlackoutForm = {
+    startDate:   todayStr,
+    endDate:     todayStr,
+    reason:      '',
+    departments: 'All',
+  }
+  const [blackoutForm, setBlackoutForm] = useState(emptyBlackoutForm)
+
+  /* ── Encashment ── */
+  const [encashOpen, setEncashOpen]         = useState(false)
+  const [encashLoading, setEncashLoading]   = useState(false)
+  const [encashError, setEncashError]       = useState('')
+  const [employees, setEmployees]           = useState<any[]>([])
+  const [encashForm, setEncashForm]         = useState({
+    employeeDocId: '',
+    days:          1,
+    dailySalary:   0,
+  })
+  const [encashBalance, setEncashBalance]   = useState<LeaveBalance | null>(null)
+
+  /* ── Team Availability (leave application) ── */
+  const [teamAvailLeaves, setTeamAvailLeaves] = useState<FirestoreLeave[]>([])
+  const [loadingTeamAvail, setLoadingTeamAvail] = useState(false)
 
   /* ── Global loading ── */
   const [loading, setLoading] = useState(true)
@@ -220,8 +248,8 @@ export default function LeavePage() {
     if (!tenantSlug || !profile) return
     setLoadingMy(true)
     try {
-      const employees = await getEmployees(tenantSlug)
-      const myEmp = employees.find(
+      const emps = await getEmployees(tenantSlug)
+      const myEmp = emps.find(
         e => e.email?.toLowerCase() === profile.email?.toLowerCase()
       )
       if (myEmp) {
@@ -275,6 +303,29 @@ export default function LeavePage() {
     }
   }, [tenantSlug])
 
+  const loadBlackouts = useCallback(async () => {
+    if (!tenantSlug) return
+    setLoadingBlackouts(true)
+    try {
+      const data = await getLeaveBlackouts(tenantSlug)
+      setBlackouts(data)
+    } catch (e) {
+      console.error('loadBlackouts', e)
+    } finally {
+      setLoadingBlackouts(false)
+    }
+  }, [tenantSlug])
+
+  const loadEmployees = useCallback(async () => {
+    if (!tenantSlug) return
+    try {
+      const emps = await getEmployees(tenantSlug)
+      setEmployees(emps)
+    } catch (e) {
+      console.error('loadEmployees', e)
+    }
+  }, [tenantSlug])
+
   /* ── Initial load ── */
   useEffect(() => {
     if (!tenantSlug) return
@@ -282,6 +333,8 @@ export default function LeavePage() {
       isAdmin ? loadAllLeaves() : loadMyLeaves(),
       loadHolidays(),
       loadCalLeaves(calMonth),
+      isAdmin ? loadBlackouts() : Promise.resolve(),
+      isAdmin ? loadEmployees() : Promise.resolve(),
     ]).finally(() => setLoading(false))
   }, [tenantSlug, isAdmin])
 
@@ -299,6 +352,31 @@ export default function LeavePage() {
       setLeaveDays(Math.max(0, d))
     }
   }, [leaveForm.fromDate, leaveForm.toDate, leaveForm.isHalfDay])
+
+  /* ── Team availability fetch on date change ── */
+  useEffect(() => {
+    if (!applyOpen || !tenantSlug) return
+    const fromD = leaveForm.fromDate
+    const toD   = leaveForm.isHalfDay ? leaveForm.fromDate : leaveForm.toDate
+    if (!fromD || !toD) return
+    setLoadingTeamAvail(true)
+    getLeavesInRange(tenantSlug, fromD, toD)
+      .then(data => {
+        // Exclude current employee
+        const filtered = data.filter(l => l.employeeDocId !== myEmpDocId)
+        setTeamAvailLeaves(filtered)
+      })
+      .catch(e => console.error('teamAvail', e))
+      .finally(() => setLoadingTeamAvail(false))
+  }, [applyOpen, leaveForm.fromDate, leaveForm.toDate, leaveForm.isHalfDay, tenantSlug, myEmpDocId])
+
+  /* ── Load encash balance when employee selected ── */
+  useEffect(() => {
+    if (!encashForm.employeeDocId || !tenantSlug) return
+    getLeaveBalance(tenantSlug, encashForm.employeeDocId)
+      .then(b => setEncashBalance(b))
+      .catch(e => console.error('encashBalance', e))
+  }, [encashForm.employeeDocId, tenantSlug])
 
   /* ═══════════════════════════════════════════════════════════
      Actions
@@ -347,8 +425,8 @@ export default function LeavePage() {
     setApplyLoading(true)
     setApplyError('')
     try {
-      const employees = await getEmployees(tenantSlug)
-      const myEmp = employees.find(
+      const emps = await getEmployees(tenantSlug)
+      const myEmp = emps.find(
         e => e.email?.toLowerCase() === profile?.email?.toLowerCase()
       )
       if (!myEmp) {
@@ -436,6 +514,72 @@ export default function LeavePage() {
     URL.revokeObjectURL(url)
   }
 
+  const handleAddBlackout = async () => {
+    if (!blackoutForm.reason.trim()) return
+    setBlackoutLoading(true)
+    try {
+      const adminName = profile?.displayName || profile?.email || 'Admin'
+      await addLeaveBlackout(tenantSlug, {
+        startDate:   blackoutForm.startDate,
+        endDate:     blackoutForm.endDate,
+        reason:      blackoutForm.reason,
+        departments: blackoutForm.departments === 'All' ? ['All'] : [blackoutForm.departments],
+        createdBy:   adminName,
+      })
+      setBlackoutOpen(false)
+      setBlackoutForm(emptyBlackoutForm)
+      await loadBlackouts()
+    } catch (e) {
+      console.error('handleAddBlackout', e)
+    } finally {
+      setBlackoutLoading(false)
+    }
+  }
+
+  const handleDeleteBlackout = async (id: string) => {
+    try {
+      await deleteLeaveBlackout(tenantSlug, id)
+      await loadBlackouts()
+    } catch (e) {
+      console.error('handleDeleteBlackout', e)
+    }
+  }
+
+  const handleEncashLeave = async () => {
+    if (!encashForm.employeeDocId || encashForm.days < 1) {
+      setEncashError('Select an employee and enter valid days.')
+      return
+    }
+    const maxDays = encashBalance?.PL?.remaining ?? 0
+    if (encashForm.days > maxDays) {
+      setEncashError(`Cannot encash more than ${maxDays} remaining PL days.`)
+      return
+    }
+    setEncashLoading(true)
+    setEncashError('')
+    try {
+      const adminName = profile?.displayName || profile?.email || 'Admin'
+      const emp = employees.find(e => e.id === encashForm.employeeDocId)
+      const amountPaid = encashForm.days * encashForm.dailySalary
+      await encashLeave(tenantSlug, {
+        employeeDocId: encashForm.employeeDocId,
+        employeeName:  emp?.name ?? '',
+        daysEncashed:  encashForm.days,
+        amountPaid,
+        encashedOn:    todayStr,
+        processedBy:   adminName,
+      })
+      setEncashOpen(false)
+      setEncashForm({ employeeDocId: '', days: 1, dailySalary: 0 })
+      setEncashBalance(null)
+    } catch (e) {
+      console.error('handleEncashLeave', e)
+      setEncashError('Failed to process encashment. Try again.')
+    } finally {
+      setEncashLoading(false)
+    }
+  }
+
   /* ═══════════════════════════════════════════════════════════
      Derived values
   ═══════════════════════════════════════════════════════════ */
@@ -454,15 +598,33 @@ export default function LeavePage() {
   const holidayMap: Record<string, FirestoreHoliday> = {}
   holidays.forEach(h => { holidayMap[h.date] = h })
 
+  /* ── Blackout date set for quick lookup ── */
+  const blackoutDateSet = new Set<string>()
+  blackouts.forEach(b => {
+    const cur = new Date(b.startDate)
+    const end = new Date(b.endDate)
+    while (cur <= end) {
+      blackoutDateSet.add(cur.toISOString().split('T')[0])
+      cur.setDate(cur.getDate() + 1)
+    }
+  })
+
+  /* ── Encash selected employee name ── */
+  const encashEmpName = employees.find(e => e.id === encashForm.employeeDocId)?.name ?? ''
+  const encashMaxDays = encashBalance?.PL?.remaining ?? 0
+  const encashAmount  = encashForm.days * encashForm.dailySalary
+
   /* ═══════════════════════════════════════════════════════════
      Tab definitions
   ═══════════════════════════════════════════════════════════ */
 
   const tabs = isAdmin
     ? [
-        { id: 'requests',  label: 'All Requests',    badge: pendingCount },
-        { id: 'calendar',  label: 'Team Calendar',   badge: 0 },
-        { id: 'holidays',  label: 'Holidays',         badge: 0 },
+        { id: 'requests',       label: 'All Requests',    badge: pendingCount },
+        { id: 'calendar',       label: 'Team Calendar',   badge: 0 },
+        { id: 'holidays',       label: 'Holidays',         badge: 0 },
+        { id: 'encashment',     label: 'Encashment',       badge: 0 },
+        { id: 'blackout-dates', label: 'Blackout Dates',   badge: 0 },
       ]
     : [
         { id: 'my-leaves', label: 'My Leaves',        badge: 0 },
@@ -508,13 +670,13 @@ export default function LeavePage() {
 
         {/* ── Tabs ── */}
         <div className="border-b border-slate-200">
-          <nav className="-mb-px flex gap-6">
+          <nav className="-mb-px flex gap-6 overflow-x-auto">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex items-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors',
+                  'flex items-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
@@ -879,8 +1041,10 @@ export default function LeavePage() {
                     const isCurrentMonth = day.getMonth() === calMonth.getMonth()
                     const isToday        = day.toISOString().split('T')[0] === todayStr
                     const isWeekend      = day.getDay() === 0 || day.getDay() === 6
+                    const dayStr         = day.toISOString().split('T')[0]
+                    const isBlackout     = isCurrentMonth && blackoutDateSet.has(dayStr)
                     const dayLeaves      = isCurrentMonth ? getLeaveOnDay(day, calLeaves) : []
-                    const dayHoliday     = isCurrentMonth ? holidayMap[day.toISOString().split('T')[0]] : undefined
+                    const dayHoliday     = isCurrentMonth ? holidayMap[dayStr] : undefined
                     const showLeaves     = dayLeaves.slice(0, 3)
                     const extraCount     = dayLeaves.length - showLeaves.length
 
@@ -892,6 +1056,7 @@ export default function LeavePage() {
                           !isCurrentMonth && 'bg-slate-50/60',
                           isWeekend && isCurrentMonth && 'bg-slate-50',
                           isToday && 'bg-blue-50',
+                          isBlackout && 'bg-red-50',
                           idx % 7 === 6 && 'border-r-0',
                         )}
                       >
@@ -907,6 +1072,13 @@ export default function LeavePage() {
                         {dayHoliday && (
                           <p className="text-[9px] text-amber-600 font-medium mt-0.5 leading-tight truncate">
                             {dayHoliday.name}
+                          </p>
+                        )}
+
+                        {/* Blackout indicator */}
+                        {isBlackout && (
+                          <p className="text-[9px] text-red-500 font-medium mt-0.5 leading-tight truncate flex items-center gap-0.5">
+                            <Ban className="w-2.5 h-2.5 inline" /> Blackout
                           </p>
                         )}
 
@@ -949,6 +1121,10 @@ export default function LeavePage() {
               <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                 <span className="w-3 h-3 rounded-sm bg-amber-100 border border-amber-200" />
                 Holiday
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                <span className="w-3 h-3 rounded-sm bg-red-100 border border-red-200" />
+                Blackout
               </div>
             </div>
           </motion.div>
@@ -1048,13 +1224,194 @@ export default function LeavePage() {
           </motion.div>
         )}
 
+        {/* ══════════════════════════════════════════════
+            TAB: Encashment (admin only)
+        ══════════════════════════════════════════════ */}
+        {activeTab === 'encashment' && isAdmin && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">Leave Encashment</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Process Privilege Leave (PL) encashment for employees</p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEncashForm({ employeeDocId: '', days: 1, dailySalary: 0 })
+                  setEncashBalance(null)
+                  setEncashError('')
+                  setEncashOpen(true)
+                }}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <DollarSign className="w-3.5 h-3.5" />
+                Encash Leave
+              </Button>
+            </div>
+
+            {/* Employee PL Balances */}
+            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Employee PL Balances</p>
+              </div>
+              {employees.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-24 text-slate-400">
+                  <Users className="w-6 h-6 mb-1 opacity-40" />
+                  <p className="text-sm">No employees found</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50 border-b border-slate-200">
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Employee</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Department</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">PL Remaining</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employees.map(emp => (
+                      <TableRow key={emp.id} className="hover:bg-slate-50 transition-colors">
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <Avatar className="w-7 h-7">
+                              <AvatarFallback className="bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                                {getInitials(emp.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-medium text-slate-800">{emp.name}</p>
+                              <p className="text-[11px] text-slate-400">{emp.employeeId}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-600">{emp.department ?? '—'}</TableCell>
+                        <TableCell>
+                          <span className="text-sm font-semibold text-emerald-700">—</span>
+                          <span className="text-[11px] text-slate-400 ml-1">days</span>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEncashForm({ employeeDocId: emp.id, days: 1, dailySalary: 0 })
+                              setEncashBalance(null)
+                              setEncashError('')
+                              setEncashOpen(true)
+                            }}
+                            className="h-7 px-2.5 text-[11px] text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                          >
+                            <DollarSign className="w-3 h-3 mr-1" />
+                            Encash PL
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ══════════════════════════════════════════════
+            TAB: Blackout Dates (admin only)
+        ══════════════════════════════════════════════ */}
+        {activeTab === 'blackout-dates' && isAdmin && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">Leave Blackout Dates</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Periods during which employees cannot take leave</p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => { setBlackoutForm(emptyBlackoutForm); setBlackoutOpen(true) }}
+                className="gap-1.5 bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Blackout Period
+              </Button>
+            </div>
+
+            {/* Info banner */}
+            <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-700">
+                Blackout dates are shown on the team calendar and employees will see these dates as unavailable when applying for leave.
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+              {loadingBlackouts ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                </div>
+              ) : blackouts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-slate-400">
+                  <Ban className="w-8 h-8 mb-2 opacity-40" />
+                  <p className="text-sm">No blackout periods defined</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50 border-b border-slate-200">
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Start Date</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">End Date</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Reason</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Departments</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Created By</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-500 uppercase tracking-wide"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {blackouts.map(b => (
+                      <TableRow key={b.id} className="hover:bg-slate-50 transition-colors">
+                        <TableCell className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                          {fmtDate(b.startDate)}
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-600 whitespace-nowrap">
+                          {fmtDate(b.endDate)}
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-600 max-w-[200px]">
+                          <p className="truncate" title={b.reason}>{b.reason}</p>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {(b.departments ?? []).map((d, i) => (
+                              <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                {d}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-500">{b.createdBy}</TableCell>
+                        <TableCell>
+                          <button
+                            onClick={() => handleDeleteBlackout(b.id)}
+                            className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded"
+                            title="Delete blackout period"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </motion.div>
+        )}
+
       </div>
 
       {/* ══════════════════════════════════════════════════════════════
           Apply Leave Dialog
       ══════════════════════════════════════════════════════════════ */}
       <Dialog open={applyOpen} onOpenChange={open => { setApplyOpen(open); if (!open) setApplyError('') }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-slate-900">Apply for Leave</DialogTitle>
           </DialogHeader>
@@ -1171,6 +1528,46 @@ export default function LeavePage() {
                 rows={3}
                 className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               />
+            </div>
+
+            {/* M3: Team Availability */}
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-slate-500" />
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Team Availability</span>
+                {loadingTeamAvail && <Loader2 className="w-3 h-3 animate-spin text-slate-400 ml-auto" />}
+              </div>
+              <div className="px-3 py-2 max-h-32 overflow-y-auto">
+                {loadingTeamAvail ? (
+                  <p className="text-xs text-slate-400 py-2 text-center">Checking availability...</p>
+                ) : teamAvailLeaves.length === 0 ? (
+                  <p className="text-xs text-emerald-600 py-1 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    No teammates are on leave during this period
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 py-1">
+                    <p className="text-[11px] text-amber-600 font-medium mb-1.5">
+                      {teamAvailLeaves.length} colleague{teamAvailLeaves.length > 1 ? 's' : ''} on leave:
+                    </p>
+                    {teamAvailLeaves.map(l => (
+                      <div key={l.id} className="flex items-center gap-2 text-xs text-slate-600">
+                        <Avatar className="w-5 h-5">
+                          <AvatarFallback className="bg-slate-100 text-slate-600 text-[8px] font-semibold">
+                            {getInitials(l.employeeName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{l.employeeName}</span>
+                        <span className="text-slate-400">·</span>
+                        <LeaveTypeBadge type={l.leaveType} />
+                        <span className="text-slate-400 ml-auto">
+                          {fmtDate(l.fromDate)}{l.fromDate !== l.toDate ? ` → ${fmtDate(l.toDate)}` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {applyError && (
@@ -1305,6 +1702,198 @@ export default function LeavePage() {
               >
                 {addHolLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
                 Add Holiday
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══════════════════════════════════════════════════════════════
+          Add Blackout Period Dialog
+      ══════════════════════════════════════════════════════════════ */}
+      <Dialog open={blackoutOpen} onOpenChange={setBlackoutOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-slate-900">Add Blackout Period</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {/* Warning banner */}
+            <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-amber-700">
+                Employees will see these dates as unavailable when applying for leave.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">Start Date <span className="text-red-500">*</span></Label>
+              <Input
+                type="date"
+                value={blackoutForm.startDate}
+                onChange={e => setBlackoutForm(f => ({ ...f, startDate: e.target.value }))}
+                className="h-8 text-sm border-slate-200"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">End Date <span className="text-red-500">*</span></Label>
+              <Input
+                type="date"
+                value={blackoutForm.endDate}
+                min={blackoutForm.startDate}
+                onChange={e => setBlackoutForm(f => ({ ...f, endDate: e.target.value }))}
+                className="h-8 text-sm border-slate-200"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">Reason <span className="text-red-500">*</span></Label>
+              <Input
+                value={blackoutForm.reason}
+                onChange={e => setBlackoutForm(f => ({ ...f, reason: e.target.value }))}
+                placeholder="e.g. Year-end audit, Product launch"
+                className="h-8 text-sm border-slate-200"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">Affected Departments</Label>
+              <Select
+                value={blackoutForm.departments}
+                onValueChange={v => setBlackoutForm(f => ({ ...f, departments: v }))}
+              >
+                <SelectTrigger className="h-8 text-sm border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Departments</SelectItem>
+                  <SelectItem value="Engineering">Engineering</SelectItem>
+                  <SelectItem value="HR">HR</SelectItem>
+                  <SelectItem value="Finance">Finance</SelectItem>
+                  <SelectItem value="Sales">Sales</SelectItem>
+                  <SelectItem value="Operations">Operations</SelectItem>
+                  <SelectItem value="Marketing">Marketing</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBlackoutOpen(false)}
+                className="flex-1 border-slate-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAddBlackout}
+                disabled={blackoutLoading || !blackoutForm.reason.trim()}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              >
+                {blackoutLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Add Blackout Period
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══════════════════════════════════════════════════════════════
+          Encash Leave Dialog
+      ══════════════════════════════════════════════════════════════ */}
+      <Dialog open={encashOpen} onOpenChange={open => { setEncashOpen(open); if (!open) setEncashError('') }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-slate-900">Encash Privilege Leave</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">Employee <span className="text-red-500">*</span></Label>
+              <Select
+                value={encashForm.employeeDocId}
+                onValueChange={v => setEncashForm(f => ({ ...f, employeeDocId: v, days: 1 }))}
+              >
+                <SelectTrigger className="h-8 text-sm border-slate-200">
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map(emp => (
+                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {encashBalance && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
+                <CalendarDays className="w-4 h-4 text-emerald-600" />
+                <span className="text-sm text-emerald-700">
+                  <span className="font-semibold">{encashBalance.PL.remaining}</span> PL days remaining
+                </span>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">
+                Days to Encash
+                {encashBalance && (
+                  <span className="text-slate-400 ml-1">(max {encashMaxDays})</span>
+                )}
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                max={encashMaxDays || undefined}
+                value={encashForm.days}
+                onChange={e => setEncashForm(f => ({ ...f, days: Math.max(1, parseInt(e.target.value) || 1) }))}
+                className="h-8 text-sm border-slate-200"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">Daily Salary (₹) <span className="text-red-500">*</span></Label>
+              <Input
+                type="number"
+                min={0}
+                value={encashForm.dailySalary || ''}
+                onChange={e => setEncashForm(f => ({ ...f, dailySalary: parseFloat(e.target.value) || 0 }))}
+                placeholder="e.g. 2500"
+                className="h-8 text-sm border-slate-200"
+              />
+            </div>
+
+            {encashForm.dailySalary > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <DollarSign className="w-4 h-4 text-slate-400" />
+                <span className="text-sm text-slate-600">Total payout:</span>
+                <span className="text-sm font-bold text-slate-800 ml-auto">
+                  ₹{encashAmount.toLocaleString('en-IN')}
+                </span>
+              </div>
+            )}
+
+            {encashError && (
+              <div className="flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded text-sm text-red-700">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                {encashError}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setEncashOpen(false); setEncashError('') }}
+                className="flex-1 border-slate-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleEncashLeave}
+                disabled={encashLoading || !encashForm.employeeDocId || encashForm.dailySalary <= 0}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {encashLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Process Encashment
               </Button>
             </div>
           </div>

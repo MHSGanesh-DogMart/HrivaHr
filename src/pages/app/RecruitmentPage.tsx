@@ -5,7 +5,9 @@ import {
   Briefcase, Users, Calendar, Plus, Edit2, Trash2, X, Search,
   ChevronRight, MapPin, Clock, DollarSign, Filter, Download,
   CheckCircle2, AlertCircle, ArrowRight, MoreHorizontal, FileText,
+  Upload, ExternalLink,
 } from 'lucide-react'
+import { uploadFile, validateFile, type UploadProgress } from '@/services/storageService'
 import OfferLetterModal from '@/components/recruitment/OfferLetterModal'
 import { cn } from '@/lib/utils'
 import {
@@ -540,7 +542,11 @@ function CandidateModal({ slug, jobs, onClose }: any) {
     currentCompany: '', currentRole: '', currentCTC: '', expectedCTC: '', noticePeriod: 30,
     stage: 'Applied' as CandidateStage, linkedIn: '', notes: '',
   })
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [resumeFile, setResumeFile]     = useState<File | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<number>(0)
+  const [uploading, setUploading]       = useState(false)
+  const [fileError, setFileError]       = useState('')
 
   function onJobChange(jobId: string) {
     const job = jobs.find((j: FirestoreJob) => j.id === jobId)
@@ -551,8 +557,33 @@ function CandidateModal({ slug, jobs, onClose }: any) {
     if (!form.name || !form.email || !form.jobId) return alert('Name, Email and Job required')
     setSaving(true)
     try {
-      await addCandidate(slug, { ...form, experience: +form.experience, currentCTC: form.currentCTC ? +form.currentCTC : undefined, expectedCTC: form.expectedCTC ? +form.expectedCTC : undefined, noticePeriod: +form.noticePeriod })
+      // Upload resume if provided
+      let resumeUrl: string | undefined
+      if (resumeFile) {
+        setUploading(true)
+        setUploadProgress(0)
+        const result = await uploadFile(
+          slug,
+          'resumes' as any,
+          resumeFile,
+          (p: UploadProgress) => setUploadProgress(p.percent),
+        )
+        resumeUrl = result.url
+        setUploading(false)
+      }
+
+      await addCandidate(slug, {
+        ...form,
+        experience: +form.experience,
+        currentCTC: form.currentCTC ? +form.currentCTC : undefined,
+        expectedCTC: form.expectedCTC ? +form.expectedCTC : undefined,
+        noticePeriod: +form.noticePeriod,
+        ...(resumeUrl ? { resumeUrl } : {}),
+      })
       onClose()
+    } catch (err) {
+      console.error('Add candidate failed:', err)
+      setUploading(false)
     } finally { setSaving(false) }
   }
 
@@ -590,10 +621,70 @@ function CandidateModal({ slug, jobs, onClose }: any) {
         </div>
         <Field label="LinkedIn URL"><input className={INPUT} value={form.linkedIn} onChange={e => setForm(p => ({ ...p, linkedIn: e.target.value }))} /></Field>
         <Field label="Notes"><textarea className={cn(INPUT, 'h-16 resize-none')} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></Field>
+
+        {/* Resume Upload */}
+        <Field label={<span>Resume / CV <span className="text-slate-400 font-normal normal-case tracking-normal">(PDF, DOC, DOCX · max 10MB)</span></span>}>
+          <label className={cn(
+            'flex items-center gap-3 w-full border rounded-lg px-3 py-2.5 cursor-pointer transition-colors',
+            resumeFile
+              ? 'border-blue-300 bg-blue-50/40'
+              : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50',
+          )}>
+            <Upload className="w-4 h-4 text-slate-400 shrink-0" />
+            <span className={cn('text-[13px] truncate flex-1', resumeFile ? 'text-slate-700' : 'text-slate-400')}>
+              {resumeFile ? resumeFile.name : 'Choose file…'}
+            </span>
+            {resumeFile && (
+              <button
+                type="button"
+                onClick={e => { e.preventDefault(); setResumeFile(null); setUploadProgress(0); setFileError('') }}
+                className="p-0.5 rounded text-slate-400 hover:text-red-500 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const validation = validateFile(file, { maxSizeMB: 10, allowedTypes: ['pdf', 'msword', 'wordprocessingml'] })
+                if (!validation.valid) {
+                  setFileError(validation.error ?? 'Invalid file.')
+                  return
+                }
+                setFileError('')
+                setResumeFile(file)
+                setUploadProgress(0)
+              }}
+            />
+          </label>
+          {fileError && (
+            <p className="text-[11px] text-red-600 mt-1">{fileError}</p>
+          )}
+          {/* Progress bar */}
+          {uploading && (
+            <div className="mt-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-slate-500 font-medium">Uploading resume…</span>
+                <span className="text-[10px] text-slate-500 font-semibold">{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-200"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </Field>
+
         <div className="flex gap-3 pt-2">
           <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
-          <button onClick={save} disabled={saving} className="flex-1 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {saving ? 'Adding…' : 'Add Candidate'}
+          <button onClick={save} disabled={saving || uploading} className="flex-1 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            {(saving || uploading) ? (uploading ? 'Uploading…' : 'Adding…') : 'Add Candidate'}
           </button>
         </div>
       </div>

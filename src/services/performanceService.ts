@@ -380,3 +380,151 @@ export function ratingLabel(rating: number): string {
   }
   return map[Math.round(rating)] ?? 'N/A'
 }
+
+/* ── COMPETENCY FRAMEWORK ───────────────────────────────────────── */
+
+export interface ProficiencyLevel {
+  level:       number   // 1–5
+  description: string
+}
+
+export interface FirestoreCompetency {
+  id:                string
+  name:              string
+  category:          string
+  description:       string
+  proficiencyLevels: ProficiencyLevel[]
+  createdAt?:        unknown
+  updatedAt?:        unknown
+}
+
+export interface CompetencyMappingItem {
+  competencyId: string
+  name:         string
+  minLevel:     number
+}
+
+export interface FirestoreCompetencyMapping {
+  id:           string
+  designation:  string
+  competencies: CompetencyMappingItem[]
+  createdAt?:   unknown
+  updatedAt?:   unknown
+}
+
+export interface AssessmentItem {
+  competencyId:  string
+  name:          string
+  selfScore:     number
+  managerScore:  number
+  finalScore:    number
+}
+
+export interface FirestoreCompetencyAssessment {
+  id:              string
+  employeeDocId:   string
+  employeeName:    string
+  designation:     string
+  assessments:     AssessmentItem[]
+  assessedOn:      string
+  assessedBy:      string
+  createdAt?:      unknown
+  updatedAt?:      unknown
+}
+
+function competenciesRef(slug: string)         { return collection(db, 'tenants', slug, 'competencies') }
+function competencyMappingsRef(slug: string)   { return collection(db, 'tenants', slug, 'competencyMappings') }
+function competencyAssessmentsRef(slug: string){ return collection(db, 'tenants', slug, 'competencyAssessments') }
+
+export async function createCompetency(
+  slug: string,
+  data: Omit<FirestoreCompetency, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<string> {
+  const ref = await addDoc(competenciesRef(slug), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return ref.id
+}
+
+export async function getCompetencies(slug: string): Promise<FirestoreCompetency[]> {
+  const snap = await getDocs(competenciesRef(slug))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as FirestoreCompetency))
+}
+
+export async function updateCompetency(
+  slug: string,
+  competencyId: string,
+  updates: Partial<Omit<FirestoreCompetency, 'id'>>,
+): Promise<void> {
+  await updateDoc(doc(db, 'tenants', slug, 'competencies', competencyId), {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function deleteCompetency(slug: string, competencyId: string): Promise<void> {
+  await deleteDoc(doc(db, 'tenants', slug, 'competencies', competencyId))
+}
+
+export async function saveCompetencyMapping(
+  slug: string,
+  data: Omit<FirestoreCompetencyMapping, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<string> {
+  // Upsert by designation
+  const q    = query(competencyMappingsRef(slug), where('designation', '==', data.designation))
+  const snap = await getDocs(q)
+  if (!snap.empty) {
+    const existing = snap.docs[0]
+    await updateDoc(doc(db, 'tenants', slug, 'competencyMappings', existing.id), {
+      ...data,
+      updatedAt: serverTimestamp(),
+    })
+    return existing.id
+  }
+  const ref = await addDoc(competencyMappingsRef(slug), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return ref.id
+}
+
+export async function getCompetencyMappings(slug: string): Promise<FirestoreCompetencyMapping[]> {
+  const snap = await getDocs(competencyMappingsRef(slug))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as FirestoreCompetencyMapping))
+}
+
+export async function saveCompetencyAssessment(
+  slug: string,
+  data: Omit<FirestoreCompetencyAssessment, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<string> {
+  const q    = query(competencyAssessmentsRef(slug), where('employeeDocId', '==', data.employeeDocId))
+  const snap = await getDocs(q)
+  if (!snap.empty) {
+    const existing = snap.docs[0]
+    await updateDoc(doc(db, 'tenants', slug, 'competencyAssessments', existing.id), {
+      ...data,
+      updatedAt: serverTimestamp(),
+    })
+    return existing.id
+  }
+  const ref = await addDoc(competencyAssessmentsRef(slug), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return ref.id
+}
+
+export async function getEmployeeCompetencyAssessment(
+  slug: string,
+  employeeDocId: string,
+): Promise<FirestoreCompetencyAssessment | null> {
+  const q    = query(competencyAssessmentsRef(slug), where('employeeDocId', '==', employeeDocId))
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return { id: d.id, ...d.data() } as FirestoreCompetencyAssessment
+}
