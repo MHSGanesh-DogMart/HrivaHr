@@ -61,56 +61,70 @@ export async function inviteEmployee(p: InviteEmployeeParams): Promise<void> {
     )
     const uid = cred.user.uid
 
-    // ── 3. Create the Firestore user profile ─────────────────────────
-    await setDoc(doc(db, 'users', uid), {
-      uid,
-      role:        'employee',
-      tenantSlug:  p.tenantSlug,
-      firstName:   p.firstName,
-      lastName:    p.lastName,
-      email:       p.email,
-      displayName: p.name,
-      phone:       p.phone       || '',
-      jobTitle:    p.designation || '',
-    })
+    try {
+      // ── 3. Create the Firestore user profile ─────────────────────────
+      await setDoc(doc(db, 'users', uid), {
+        uid,
+        role:        'employee',
+        tenantSlug:  p.tenantSlug,
+        firstName:   p.firstName,
+        lastName:    p.lastName,
+        email:       p.email,
+        displayName: p.name,
+        phone:       p.phone       || '',
+        jobTitle:    p.designation || '',
+      })
 
-    // ── 4. Link the employee Firestore doc to the Firebase Auth UID ──
-    await updateDoc(
-      doc(db, 'tenants', p.tenantSlug, 'employees', p.employeeDocId),
-      { uid, authStatus: 'active' },
-    )
+      // ── 4. Link the employee Firestore doc to the Firebase Auth UID ──
+      await updateDoc(
+        doc(db, 'tenants', p.tenantSlug, 'employees', p.employeeDocId),
+        { uid, authStatus: 'active' },
+      )
 
-    // ── 5. Send beautiful custom invite email via Render/Resend ─────
-    //    Falls back to Firebase reset email if server is unreachable
-    const apiBase  = 'https://hrivahr.onrender.com'
-    const setupUrl =
-      (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
-      `/set-password?email=${encodeURIComponent(p.email)}&tenant=${encodeURIComponent(p.tenantSlug)}&empId=${encodeURIComponent(p.employeeDocId)}`
-
-    const res = await fetch(`${apiBase}/api/invite`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email:      p.email,
-        firstName:  p.firstName,
-        tenantSlug: p.tenantSlug,
-        employeeId: p.employeeDocId,
-        setupUrl,
-      }),
-    })
-    if (res.ok) {
-      console.log('✅ Invite email sent via Resend')
-    } else {
-      const err = await res.json().catch(() => ({}))
-      console.warn('Invite API non-OK, falling back to Firebase email:', err)
-      // Fallback: Firebase's own password-reset email (always works)
-      const continueUrl =
+      // ── 5. Send beautiful custom invite email via Render/Resend ─────
+      const apiBase  = 'https://hrivahr.onrender.com'
+      const setupUrl =
         (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
-        `/${p.tenantSlug}/login`
-      await sendPasswordResetEmail(secondaryAuth, p.email, { url: continueUrl })
+        `/set-password?email=${encodeURIComponent(p.email)}&tenant=${encodeURIComponent(p.tenantSlug)}&empId=${encodeURIComponent(p.employeeDocId)}`
+
+      const res = await fetch(`${apiBase}/api/invite`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:      p.email,
+          firstName:  p.firstName,
+          tenantSlug: p.tenantSlug,
+          employeeId: p.employeeDocId,
+          setupUrl,
+        }),
+      })
+
+      if (res.ok) {
+        console.log('✅ Invite email sent via Resend')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        console.warn('Invite API non-OK, falling back to Firebase email:', err)
+        const continueUrl =
+          (typeof window !== 'undefined' ? window.location.origin : 'https://hrivahr.web.app') +
+          `/${p.tenantSlug}/login`
+        await sendPasswordResetEmail(secondaryAuth, p.email, { url: continueUrl })
+      }
+    } catch (innerErr) {
+      console.error('Invite step failed, attempting Auth rollback:', innerErr)
+      // ROLLBACK: Delete the Auth user we just created so we don't leave ghosts
+      try {
+        const apiBase = 'https://hrivahr.onrender.com'
+        await fetch(`${apiBase}/api/delete-employee-auth`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ email: p.email }),
+        })
+      } catch (rollbackErr) {
+        console.error('Critical: Auth rollback failed as well:', rollbackErr)
+      }
+      throw innerErr // Re-throw the original error after rollback
     }
   } finally {
-    // ── 6. Sign out the secondary app (keeps admin session clean) ────
     await secondaryAuth.signOut()
   }
 }

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  Users, Loader2, X, AlertCircle, Filter, Upload, FolderOpen,
+  Users, Loader2, X, AlertCircle, Filter, Upload, FolderOpen, Mail,
 } from 'lucide-react'
 import DocumentsTab from '@/components/employees/DocumentsTab'
 import { Button } from '@/components/ui/button'
@@ -431,7 +431,33 @@ export default function EmployeesPage() {
     }
   }
 
-  /* ── Test Email ──────────────────────────────────────────────── */
+  /* ── Resend Invite ─────────────────────────────────────────── */
+  async function handleResendInvite(emp: FirestoreEmployee) {
+    if (!tenantSlug) return
+    if (!confirm(`Resend onboarding invite to ${emp.email}?`)) return
+
+    setSaving(true)
+    try {
+      await inviteEmployee({
+        tenantSlug,
+        employeeDocId: emp.id,
+        employeeId:    emp.employeeId,
+        email:         emp.email,
+        firstName:     emp.firstName,
+        lastName:      emp.lastName,
+        name:          emp.name || `${emp.firstName} ${emp.lastName}`.trim(),
+        designation:   emp.designation,
+        phone:         emp.phone,
+      })
+      alert('Invite resent successfully!')
+      await fetchEmployees()
+    } catch (err: any) {
+      alert(`Failed to resend invite: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleTestEmail() {
     if (!tenantSlug) return
     const testEmail = prompt('Enter email to send test invite:')
@@ -696,6 +722,13 @@ export default function EmployeesPage() {
                               title="View Documents"
                             >
                               <FolderOpen className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleResendInvite(emp)}
+                              className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-amber-600 transition-colors"
+                              title="Resend Invite"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleDelete(emp)}

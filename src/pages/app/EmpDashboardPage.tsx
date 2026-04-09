@@ -246,11 +246,12 @@ export default function EmpDashboardPage() {
           employeeDocId: empRecord.id,
           employeeName:  empRecord.name,
           department:    empRecord.department,
+          useGps:        true, // Always fetch location as requested
         })
         setClockSuccess('Clocked in successfully!')
       } else {
         // ── Clock Out ──────────────────────────────────────────
-        await clockOut(tenantSlug, empRecord.employeeId)
+        await clockOut(tenantSlug, empRecord.employeeId, { useGps: true })
         setClockSuccess('Clocked out. Have a great break!')
       }
 

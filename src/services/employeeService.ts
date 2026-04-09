@@ -212,30 +212,51 @@ export async function updateEmployee(
   })
 }
 
-/* ── Delete employee (Firestore + Auth) ────────────────────────── */
+/* ── Delete employee (Firestore + Auth + Global User) ────────── */
 export async function deleteEmployee(
   tenantSlug: string,
   docId: string,
 ): Promise<void> {
-  // 1. Get employee email for Auth deletion
+  // 1. Get employee data before deletion
   const emp = await getEmployee(tenantSlug, docId)
-  if (emp?.email) {
+  if (!emp) return
+
+  // 2. Delete from Firebase Auth (via Render backend)
+  if (emp.email) {
     try {
       const apiBase = 'https://hrivahr.onrender.com'
-      await fetch(`${apiBase}/api/delete-employee-auth`, {
+      const res = await fetch(`${apiBase}/api/delete-employee-auth`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: emp.email }),
       })
-      console.log(`[employeeService] Auth deletion request sent for ${emp.email}`)
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        console.error('[employeeService] Backend Auth deletion failed:', errorData)
+        // If it's a critical error (not just 404), we should ideally stop here
+        // But for now, we'll continue to clean up Firestore
+      } else {
+        console.log(`[employeeService] Auth deletion successful for ${emp.email}`)
+      }
     } catch (err) {
-      console.error('[employeeService] Failed to call backend for Auth deletion:', err)
-      // We continue to delete Firestore anyway, but this might leave a ghost user
+      console.error('[employeeService] Network error calling Auth deletion backend:', err)
     }
   }
 
-  // 2. Delete Firestore record
+  // 3. Delete global users/{uid} document if UID exists
+  if (emp.uid) {
+    try {
+      await deleteDoc(doc(db, 'users', emp.uid))
+      console.log(`[employeeService] Global users doc deleted for UID: ${emp.uid}`)
+    } catch (err) {
+      console.error('[employeeService] Failed to delete global users doc:', err)
+    }
+  }
+
+  // 4. Delete the tenant-specific employee record
   await deleteDoc(doc(db, 'tenants', tenantSlug, 'employees', docId))
+  console.log(`[employeeService] Tenant employee doc deleted: ${docId}`)
 }
 
 /* ── Get unique departments from employee list ─────────────────── */

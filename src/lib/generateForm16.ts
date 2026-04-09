@@ -43,10 +43,12 @@ export function generateForm16(
     day: 'numeric', month: 'long', year: 'numeric',
   })
 
-  const incomeTax     = Math.max(0, annualData.totalTDS)
-  const eduCess       = Math.round(incomeTax / 1.04 * 0.04)
-  const taxBeforeCess = incomeTax - eduCess
-  const netTaxPayable = incomeTax
+  // Calculate breakdown (assuming totalTDS includes 4% Education Cess)
+  // Total = Base + 4% of Base = 1.04 * Base
+  const annualTds    = Math.max(0, annualData.totalTDS)
+  const taxBeforeCess = Math.round(annualTds / 1.04)
+  const eduCess       = annualTds - taxBeforeCess
+  const netTaxPayable = annualTds
 
   const html = `<!DOCTYPE html>
 <html lang="en">

@@ -2,7 +2,8 @@
 import { useState, useRef } from 'react'
 import { Upload, X, Download, CheckCircle2, AlertCircle, RefreshCw, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { addEmployee, generateEmployeeId } from '@/services/employeeService'
+import { addEmployee, generateEmployeeId, checkEmailExists } from '@/services/employeeService'
+import { inviteEmployee } from '@/services/inviteService'
 
 interface BulkImportModalProps {
   slug:     string
@@ -80,8 +81,17 @@ export default function BulkImportModal({ slug, onClose, onImported }: BulkImpor
     for (const item of toImport) {
       const idx = updated.findIndex(r => r.row === item.row)
       try {
+        // 1. Check if email already exists in this tenant
+        const exists = await checkEmailExists(slug, item.data.email)
+        if (exists) {
+          updated[idx] = { ...updated[idx], status: 'error', error: 'Email already exists in this company' }
+          setRows([...updated])
+          continue
+        }
+
+        // 2. Generate ID and Add to Firestore
         const employeeId = await generateEmployeeId(slug)
-        await addEmployee(slug, {
+        const docId = await addEmployee(slug, {
           employeeId,
           firstName:    item.data.firstName,
           lastName:     item.data.lastName,
@@ -98,6 +108,26 @@ export default function BulkImportModal({ slug, onClose, onImported }: BulkImpor
           manager:      item.data.manager || '',
           authStatus:   'pending',
         } as any)
+
+        // 3. Create Auth account and send invite
+        try {
+          await inviteEmployee({
+            tenantSlug:    slug,
+            employeeDocId: docId,
+            employeeId,
+            email:         item.data.email,
+            firstName:     item.data.firstName,
+            lastName:      item.data.lastName,
+            name:          `${item.data.firstName} ${item.data.lastName}`,
+            designation:   item.data.designation,
+            phone:         item.data.phone || '',
+          })
+        } catch (inviteErr: any) {
+          updated[idx] = { ...updated[idx], status: 'error', error: `Auth Error: ${inviteErr.message}` }
+          setRows([...updated])
+          continue
+        }
+
         updated[idx] = { ...updated[idx], status: 'success' }
         successCount++
       } catch (err: any) {

@@ -132,10 +132,32 @@ export function getCurrentLocation(): Promise<GpsLocation> {
         longitude: pos.coords.longitude,
         accuracy:  pos.coords.accuracy,
       }),
-      (err) => reject(new Error(err.message)),
+      (err) => {
+        let msg = 'Failed to get location'
+        if (err.code === 1) msg = 'Location access denied. Please enable GPS.'
+        else if (err.code === 2) msg = 'Location unavailable.'
+        else if (err.code === 3) msg = 'Location request timed out.'
+        reject(new Error(msg))
+      },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     )
   })
+}
+
+/** Haversine formula to calculate distance between two points in meters */
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3 // Earth radius in meters
+  const φ1 = (lat1 * Math.PI) / 180
+  const φ2 = (lat2 * Math.PI) / 180
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180
+
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+  return R * c
 }
 
 /* ── Fetch attendance for a specific date ──────────────────────── */
@@ -211,20 +233,49 @@ export async function clockIn(
     method?:       AttendanceMethod
   },
 ): Promise<string> {
+  // 1. Fetch Geofencing Settings
+  const { getCompanySettings } = await import('./settingsService')
+  const settings = await getCompanySettings(tenantSlug)
+  const isWFH = params.isWFH ?? false
+
+  let gpsIn: GpsLocation | undefined
+  
+  // 2. Enforce Geofencing if enabled (and not WFH)
+  if (!isWFH && (settings.clockInMode === 'location' || settings.clockInMode === 'both')) {
+    try {
+      gpsIn = await getCurrentLocation()
+      
+      if (settings.officeLatitude && settings.officeLongitude) {
+        const distance = calculateDistance(
+          gpsIn.latitude, 
+          gpsIn.longitude, 
+          settings.officeLatitude, 
+          settings.officeLongitude
+        )
+        
+        const radius = settings.locationRadius || 100
+        if (distance > radius) {
+          throw new Error(`Out of Geofence: You are ${Math.round(distance)}m away from the office (Limit: ${radius}m).`)
+        }
+      }
+    } catch (err: any) {
+      if (err.message.includes('Out of Geofence') || err.message.includes('denied')) {
+        throw err // Re-throw critical geofence/permission errors
+      }
+      console.warn('[attendanceService] GPS failed but mode is location — check connectivity', err)
+    }
+  } else if (params.useGps) {
+    // Optional GPS if not forced by geofencing
+    try { gpsIn = await getCurrentLocation() } catch { /* skip */ }
+  }
+
   const date    = todayString()
   const now     = new Date()
   const timeIn  = formatTime(now)
   const [h, m]  = timeIn.split(':').map(Number)
   const isLate  = h > 9 || (h === 9 && m > 30)
-  const isWFH   = params.isWFH ?? false
   const docId   = buildDocId(date, params.employeeId)
   const method: AttendanceMethod = params.method ?? (params.useGps ? 'GPS' : 'Manual')
-
-  let gpsIn: GpsLocation | undefined
-  if (params.useGps) {
-    try { gpsIn = await getCurrentLocation() } catch { /* GPS unavailable — proceed without */ }
-  }
-
   // Check if a record already exists for today (re-clock-in after clock-out)
   const existingSnap = await getDoc(doc(db, 'tenants', tenantSlug, 'attendance', docId))
 

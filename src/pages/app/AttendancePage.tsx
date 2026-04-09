@@ -268,6 +268,22 @@ function AttendanceTable({ records, loading }: AttendanceTableProps) {
               <TableCell className="py-3">
                 <MethodBadge method={rec.method} />
               </TableCell>
+              {/* Location */}
+              <TableCell className="py-3 px-4">
+                {rec.gpsIn ? (
+                  <a 
+                    href={`https://www.google.com/maps?q=${rec.gpsIn.latitude},${rec.gpsIn.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tight bg-blue-50 px-2 py-1 rounded-md border border-blue-100 transition-colors"
+                  >
+                    <MapPin className="w-3 h-3" />
+                    Map
+                  </a>
+                ) : (
+                  <span className="text-slate-300 text-[10px] uppercase font-bold tracking-tight">—</span>
+                )}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -288,6 +304,7 @@ function AttendanceTableHeader() {
       <TableHead className={headCls}>Overtime</TableHead>
       <TableHead className={headCls}>Status</TableHead>
       <TableHead className={headCls}>Method</TableHead>
+      <TableHead className={cn(headCls, 'pr-4')}>Location</TableHead>
     </TableRow>
   )
 }
